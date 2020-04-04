@@ -1,0 +1,6 @@
+{
+  "url":"https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html",
+  "flnm": "moc_tsx",
+  "put_dir": "s3://tsx-moc/",
+  "fillna_clmn": "Symbol"
+}

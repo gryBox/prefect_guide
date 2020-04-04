@@ -1,8 +1,8 @@
 import requests
 import pandas as pd
 import datetime as dt
-
-from extractMOCData import CONFIG as cfg
+import s3fs
+import lxml
 
 import logging
 logger = logging.getLogger()

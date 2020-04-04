@@ -1,7 +1,11 @@
+# -*- coding: utf-8 -*-
+
+
 import json
 import os
 
-from extractMOCData.moc_data import TsxMocData
+import CONFIG as cfg
+from moc_data import TsxMocData
 
 import logging
 logger = logging.getLogger()
@@ -21,7 +25,7 @@ def lambda_handler(event, context):
     )
     # Scrape
     moc_df = tsxMocData.scrape_moc_data()
-
+    logger.info(f"MOC dv shape: {moc_df.shape}")
     # Write
     put_flpth = tsxMocData.write_tsx_moc(moc_df)
 
