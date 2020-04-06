@@ -12,11 +12,11 @@ logger.setLevel(logging.INFO)
 
 
 @task
-def bucket_to_df_lst(bucket_nm):
+def get_moc_file_lst(bucket_nm):
     fs = s3fs.S3FileSystem(anon=False)
-    fs.ls(bucket_nm)
+    moc_file_lst = fs.ls(bucket_nm)
 
-    return moc_df_lst
+    return moc_file_lst
 
 @task
 def read_file(flpth):
