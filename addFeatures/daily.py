@@ -23,66 +23,56 @@ class DailyData(Task):
         self.prfrd_pattern = prfrd_pattern
         self.date_clmn_nm = date_clmn_nm
 
-    def map_tsx_to_yhoo_sym(self, tsx_sym):
-        #print(tsx_sym)
-        # Check for prefereds 
-        if tsx_sym.find(self.prfrd_pattern)!=-1:
-            print(tsx_sym)
-            pr_parts = tsx_sym.partition(self.prfrd_pattern)
-            yhoo_sym = f"{pr_parts[0]}-{pr_parts[1][1]}{pr_parts[2]}.TO"
-        else:
-            # Replace equity extensions (i.e. UN, PR)
-            yhoo_sym = tsx_sym.replace(".", "-")
 
-            # Add yahoo TSX key
-            yhoo_sym = f"{yhoo_sym}.TO"
 
-        return yhoo_sym
-
-    def get_yhoo_ohlc(self, row):
+    def get_yahoo_data(self, grpd_df, st_date, interval):
         #print(row)
-        sym = yf.Ticker(row[self.yhoo_sym_clmn_nm])
+        symbol_lst = grpd_df[self.yhoo_sym_clmn_nm].values.tolist()
         
-        st_dt = row[self.date_clmn_nm]
-        end_dt = st_dt + timedelta(days=1)
+        end_dt = st_date + timedelta(days=1)
         
-        df = sym.history(
-                start=st_dt.strftime('%Y-%m-%d'), 
-                end=end_dt.strftime('%Y-%m-%d'), 
-                auto_adjust=True
-            ).head(1)
-        
-        # Add symbol to ohlc
-        df[self.yhoo_sym_clmn_nm] = row[self.yhoo_sym_clmn_nm]
+        df = yf.download(
+            symbol_lst, 
+            start=st_dt.strftime('%Y-%m-%d'), 
+            end=end_dt.strftime('%Y-%m-%d'),
+            interval=interval,
+            group_by = 'ticker'
+        )
+            
+        # # Add symbol to ohlc
+        # df[self.yhoo_sym_clmn_nm] = row[self.yhoo_sym_clmn_nm]
 
-        try:
-            df["sector"] = sym.info["sector"]
-            df["currency"] = sym.info["currency"]
-            df["marketCap"] = sym.info["marketCap"]
-            df["sharesShort"] = sym.info["sharesShort"]
-            df["floatShares"] = sym.info["floatShares"]
-            df["enterpriseValue"] = sym.info["enterpriseValue"]
-            df["exchangeTimezoneName"] = sym.info["exchangeTimezoneName"]
-            df["forwardPE"] = sym.info["forwardPE"]
+        # try:
+        #     df["sector"] = sym.info["sector"]
+        #     df["currency"] = sym.info["currency"]
+        #     df["marketCap"] = sym.info["marketCap"]
+        #     df["sharesShort"] = sym.info["sharesShort"]
+        #     df["floatShares"] = sym.info["floatShares"]
+        #     df["enterpriseValue"] = sym.info["enterpriseValue"]
+        #     df["exchangeTimezoneName"] = sym.info["exchangeTimezoneName"]
+        #     df["forwardPE"] = sym.info["forwardPE"]
 
-        except IndexError as error:
+        # except IndexError as error:
 
-            logging.info(f"Error getting info from yahoo for sym {sym.ticker}")
+        #     logging.info(f"Error getting info from yahoo for sym {sym.ticker}")
 
         return df
 
-    def add_ohlc(self, moc_key_df):
+    def get_eod_data(self, moc_key_df):
         # 1. Get a list of dfs with ohlc and date as index
-        ohlc_df_lst = moc_key_df.apply(self.get_yhoo_ohlc, axis=1)
-        df_lst = [df for df in ohlc_df_lst]
+        # 1. download EOD yahoo data date
+        grpd_eod_dfs = moc_key_df.groupby(by=[self.date_clmn_nm])
         
-        # 2. Munge df into one ohlc frame
-        ohlc_df = pd.concat(df_lst, axis=0).reset_index()
+        df_lst = []
+        for grp in grpd_eod_dfs:
+            df = self.get_eod_data(grp[1], grp[0], interval="1d")
+            df_lst.append(df)
+        
+        eod_df = pd.concat(df_lst, ignore_index=True)
 
-        return ohlc_df
+
+        return eod_df
     
-    def normalize_daily(self, df):
-        return
 
     def run(self, df):
         
