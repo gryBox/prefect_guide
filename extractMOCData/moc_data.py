@@ -30,7 +30,7 @@ class TsxMocData(object):
     def set_output_flnm(self):
     # Set file name and flpth 
         today = pd.Timestamp('today')
-        self.output_filename = f"{self.flnm}_{today:%Y%m%d}.csv"
+        self.output_filename = f"{self.flnm}_{today:%Y%m%d}.json"
 
 
 
@@ -72,7 +72,12 @@ class TsxMocData(object):
     def write_tsx_moc(self, df):
 
         logger.info(f"Writing to file: {self.output_filepath}")
-        df.to_csv(self.output_filepath, index=False)
+        df.to_json(
+            self.output_filepath, 
+            orient="records",
+            double_precision=5,
+            date_unit="s"
+            )
 
         return self.output_filepath
 

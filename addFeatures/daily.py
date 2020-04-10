@@ -10,93 +10,99 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 
-class DailyData(Task):
+class DailyData(object):
     def __init__(
         self,
         symbol_clmn_nm="Symbol",
         yhoo_sym_clmn_nm="yahoo_symbol",
-        date_clmn_nm="moc_date",
-        prfrd_pattern=".PR."
+        date_clmn_nm="moc_date"
         ):
         self.symbol_clmn_nm = symbol_clmn_nm
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
-        self.prfrd_pattern = prfrd_pattern
         self.date_clmn_nm = date_clmn_nm
 
+    def yhoo_eod_data(self, sym_to_get, st_dt):
 
+        end_dt = st_dt + timedelta(days=1)
 
-    def get_yahoo_data(self, grpd_df, st_date, interval):
-        #print(row)
-        symbol_lst = grpd_df[self.yhoo_sym_clmn_nm].values.tolist()
-        
-        end_dt = st_date + timedelta(days=1)
-        
-        df = yf.download(
-            symbol_lst, 
+        sym = yf.Ticker(sym_to_get)
+        yhoo_price_df = sym.history(
             start=st_dt.strftime('%Y-%m-%d'), 
-            end=end_dt.strftime('%Y-%m-%d'),
-            interval=interval,
-            group_by = 'ticker'
-        )
+            end=end_dt.strftime('%Y-%m-%d'), 
+            auto_adjust=True,
+            interval="1d"
+        ).head(1)
+
+        # Add symbol to ohlc
+        yhoo_price_df[self.yhoo_sym_clmn_nm] = sym_to_get
+        yhoo_price_df = yhoo_price_df.reset_index()    
+        #print
+        try:
+            info_df = pd.DataFrame([sym.info])
+            # print(info_df["sector"])
+            yhoo_eod_df = yhoo_price_df.join(info_df, how="left")
+            # print(yhoo_eod_df)
+            return yhoo_eod_df
+
+        except IndexError as error:
+            logging.info(f"Error getting info from yahoo for sym {sym.ticker}")
             
-        # # Add symbol to ohlc
-        # df[self.yhoo_sym_clmn_nm] = row[self.yhoo_sym_clmn_nm]
 
-        # try:
-        #     df["sector"] = sym.info["sector"]
-        #     df["currency"] = sym.info["currency"]
-        #     df["marketCap"] = sym.info["marketCap"]
-        #     df["sharesShort"] = sym.info["sharesShort"]
-        #     df["floatShares"] = sym.info["floatShares"]
-        #     df["enterpriseValue"] = sym.info["enterpriseValue"]
-        #     df["exchangeTimezoneName"] = sym.info["exchangeTimezoneName"]
-        #     df["forwardPE"] = sym.info["forwardPE"]
-
-        # except IndexError as error:
-
-        #     logging.info(f"Error getting info from yahoo for sym {sym.ticker}")
-
-        return df
+            return yhoo_price_df
 
     def get_eod_data(self, moc_key_df):
-        # 1. Get a list of dfs with ohlc and date as index
-        # 1. download EOD yahoo data date
-        grpd_eod_dfs = moc_key_df.groupby(by=[self.date_clmn_nm])
-        
+        grpd_dates = moc_key_df.groupby(by=self.date_clmn_nm)
+
         df_lst = []
-        for grp in grpd_eod_dfs:
-            df = self.get_eod_data(grp[1], grp[0], interval="1d")
-            df_lst.append(df)
-        
+        for date_grp in grpd_dates:
+            
+            # 1. List of symbols to get
+            tickers = date_grp[1][ self.yhoo_sym_clmn_nm]
+            
+            yhoo_eod_df_lst = [self.yhoo_eod_data(sym, date_grp[0]) for sym in tickers]
+            
+            yhoo_eod_df = pd.concat(yhoo_eod_df_lst, ignore_index=True)
+            
+            df_lst.append(yhoo_eod_df)
+
         eod_df = pd.concat(df_lst, ignore_index=True)
 
-
-        return eod_df
-    
-
-    def run(self, df):
-        
-        # 1. Map TSX symbols to yhoo
-        df[self.yhoo_sym_clmn_nm] = df[self.symbol_clmn_nm].apply(self.map_tsx_to_yhoo_sym)
-
-        # 2. Add ohlc price data
-        ohlc_df = self.add_ohlc(df)
-        
-        # 3. Munge df 
-        # Make daily moc data
-        daily_moc_df = moc_key_df.merge(
-            ohlc_df,
-            how="left",
-            left_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm],
-            right_on=["Date", self.yhoo_sym_clmn_nm],
-            validate="one_to_one"
+        eod_moc_df = moc_key_df.merge(
+            eod_df, 
+            how="left", 
+            left_on=[self.yhoo_sym_clmn_nm, self.date_clmn_nm],
+            right_on=[self.yhoo_sym_clmn_nm, "Date"]
         )
 
-        # 4. Normalize i.e. drop cols
+        return eod_moc_df
+
+    def get_intraday_data(self, moc_key_df):
+        # 1. Get a list of dfs with ohlc and date as index
+        # 1. download EOD yahoo data date
+        grpd_intraday_dfs = moc_key_df.groupby(by=[self.date_clmn_nm])
+        
+        df_lst = []
+        for grp in grpd_intraday_dfs:
+            # 1. Ge
+            symbol_lst = grp[1][self.yhoo_sym_clmn_nm].values.tolist()
+            st_date = grp[0]
+            
+            end_dt = st_date + timedelta(days=1)
+            
+            df = yf.download(
+                symbol_lst, 
+                start=st_date.strftime('%Y-%m-%d'), 
+                end=end_dt.strftime('%Y-%m-%d'),
+                interval='1m',
+                group_by = 'ticker'
+            )
+
+            df_lst.append(df)
+        
+        ohlc_1min_df = pd.concat(df_lst, ignore_index=True)
 
 
-
-        return daily_moc_df
+        return ohlc_1min_df
 
 if __name__ == "__main__":
     pass

@@ -14,7 +14,7 @@ class TsxToYhoo(Task):
         yhoo_sym_clmn_nm="yahoo_symbol",
         prfrd_pattern=".PR."
     ):
-
+        super().__init__()
 
         self.symbol_clmn_nm = symbol_clmn_nm
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
@@ -27,6 +27,7 @@ class TsxToYhoo(Task):
             print(tsx_sym)
             pr_parts = tsx_sym.partition(self.prfrd_pattern)
             yhoo_sym = f"{pr_parts[0]}-{pr_parts[1][1]}{pr_parts[2]}.TO"
+            print(yhoo_sym)
         else:
             # Replace equity extensions (i.e. UN, PR)
             yhoo_sym = tsx_sym.replace(".", "-")
