@@ -2,6 +2,7 @@ from prefect import Task
 
 import pandas as pd
 from datetime import timedelta, datetime
+import humps
 
 import yfinance as yf
 
@@ -73,7 +74,9 @@ class DailyData(object):
             left_on=[self.yhoo_sym_clmn_nm, self.date_clmn_nm],
             right_on=[self.yhoo_sym_clmn_nm, "Date"]
         )
+        eod_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
 
+        eod_df = eod_df.set_index([self.date_clmn_nm, self.yhoo_sym_clmn_nm])
         return eod_moc_df
 
     def get_intraday_data(self, moc_key_df):
@@ -93,15 +96,21 @@ class DailyData(object):
                 symbol_lst, 
                 start=st_date.strftime('%Y-%m-%d'), 
                 end=end_dt.strftime('%Y-%m-%d'),
-                interval='1m',
-                group_by = 'ticker'
+                interval='1m'
+                #group_by = 'ticker'
             )
-
-            df_lst.append(df)
+            df = df.stack(dropna=False).reset_index().rename(columns={
+                'level_1': self.yhoo_sym_clmn_nm,
+                "Datetime": self.date_clmn_nm
+            })
+            df_lst.append(df.round(4))
         
         ohlc_1min_df = pd.concat(df_lst, ignore_index=True)
 
-
+        ohlc_1min_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
+        
+        ohlc_1min_df = ohlc_1min_df.set_index([self.date_clmn_nm, self.yhoo_sym_clmn_nm])
+        
         return ohlc_1min_df
 
 if __name__ == "__main__":

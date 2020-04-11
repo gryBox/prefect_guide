@@ -1,5 +1,6 @@
 from prefect import Flow, task, Task, Parameter
 
+
 from extractMOCData.moc_data import TsxMocData 
 from normalize.ticker_symbols import TsxToYhoo
 from addFeatures.daily import DailyData 
@@ -15,13 +16,16 @@ def get_tsx_moc(tsx_url, put_dir):
 def get_1min_ohlc(moc_key_df):
     dailyData =  DailyData()
     intraday_df = dailyData.get_intraday_data(moc_key_df)
-    return intraday_df
+
+    
+    return intraday_df.round(3)
 
 @task
 def get_eod_features(moc_key_df):
     dailyData =  DailyData()
     eod_df = dailyData.get_eod_data(moc_key_df)
 
+    
 
     return eod_df
 
