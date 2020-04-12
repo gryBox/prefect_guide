@@ -1,0 +1,1 @@
+Select * FROM intraday_prices 

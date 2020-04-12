@@ -76,7 +76,7 @@ class DailyData(object):
         )
         eod_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
 
-        eod_df = eod_df.set_index([self.date_clmn_nm, self.yhoo_sym_clmn_nm])
+        
         return eod_moc_df
 
     def get_intraday_data(self, moc_key_df):
@@ -109,7 +109,7 @@ class DailyData(object):
 
         ohlc_1min_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
         
-        ohlc_1min_df = ohlc_1min_df.set_index([self.date_clmn_nm, self.yhoo_sym_clmn_nm])
+        
         
         return ohlc_1min_df
 
