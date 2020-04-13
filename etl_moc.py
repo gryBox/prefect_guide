@@ -79,11 +79,17 @@ with Flow("Prepare load db data") as etl_moc_flow:
     # 4. Get EOD ohlc and attributes
     eod_df = get_eod_data(moc_key_df)
 
+    # 5. Craete daily moc table (used for training)
+    moc_df = build_moc_data(intraday_df, eod_df)
+
     # 5. Write to db
     num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst, engine=engine)
 
     # 6. Write to db
     num_rows_ins = df_to_db(eod_df, tbl_name="eod", idx_clmn_lst=index_clmn_lst, engine=engine)
+
+    # 7. Write to db
+    num_rows_ins = df_to_db(eod_df, tbl_name="moc_daily", idx_clmn_lst=index_clmn_lst, engine=engine)
 
 
 if __name__ == "__main__":
