@@ -7,17 +7,19 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-class TsxToYhoo(Task):
+class MapTickerSymbols(Task):
     def __init__(
         self,
         symbol_clmn_nm="Symbol",
         yhoo_sym_clmn_nm="yahoo_symbol",
+        tsx_sym_clmn_nm="tsx_symbol",
         prfrd_pattern=".PR."
     ):
         super().__init__()
 
         self.symbol_clmn_nm = symbol_clmn_nm
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
+        self.tsx_sym_clmn_nm = tsx_sym_clmn_nm
         self.prfrd_pattern = prfrd_pattern
 
     def map_tsx_to_yhoo_sym(self, tsx_sym):
@@ -40,5 +42,5 @@ class TsxToYhoo(Task):
     def run(self, df):
          # 1. Map TSX symbols to yhoo
         df[self.yhoo_sym_clmn_nm] = df[self.symbol_clmn_nm].apply(self.map_tsx_to_yhoo_sym)
-
+        df.rename(columns={self.symbol_clmn_nm: self.tsx_sym_clmn_nm}, inplace=True)
         return df

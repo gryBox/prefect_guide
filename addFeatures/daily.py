@@ -17,11 +17,11 @@ logger.setLevel(logging.INFO)
 class DailyData(object):
     def __init__(
         self,
-        symbol_clmn_nm="Symbol",
+        tsx_symbol_clmn_nm="tsx_symbol",
         yhoo_sym_clmn_nm="yahoo_symbol",
         date_clmn_nm="moc_date"
         ):
-        self.symbol_clmn_nm = symbol_clmn_nm
+        self.tsx_symbol_clmn_nm = tsx_symbol_clmn_nm
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
         self.date_clmn_nm = date_clmn_nm
 
@@ -77,7 +77,7 @@ class DailyData(object):
             left_on=[self.yhoo_sym_clmn_nm, self.date_clmn_nm],
             right_on=[self.yhoo_sym_clmn_nm, "Date"]
         )
-
+        
         eod_moc_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
 
         
@@ -128,12 +128,15 @@ class DailyData(object):
 
         # 2. Filter columns for base moc
         moc_df = eod_df[[
-            'imbalance_side','imbalance_size','imbalance_reference_price',
-            self.date_clmn_nm, self.yhoo_sym_clmn_nm, "close", "shares_outstanding", "shares_short", 
-            "sector", "held_percent_institutions", "book_value"]]
+            self.tsx_symbol_clmn_nm, self.date_clmn_nm, 'imbalance_side','imbalance_size',
+            'imbalance_reference_price', self.yhoo_sym_clmn_nm, "close", "shares_outstanding",
+            "shares_short", "sector", "held_percent_institutions", "book_value"]]
         
         # 3. Merge 
-        moc_df = moc_df.merge(vol_df, on="yahoo_symbol", how="left")
+        moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
+        
+        # 4. drop rows with na 
+        moc_df.dropna(axis=0, how="any", subset=["close", "volume"], inplace=True)
         
         return moc_df
 

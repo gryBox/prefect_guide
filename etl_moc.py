@@ -5,7 +5,7 @@ import sqlalchemy as sa
 import humps
 
 from extractMOCData.moc_data import TsxMocData 
-from normalize.ticker_symbols import TsxToYhoo
+from normalize.ticker_symbols import MapTickerSymbols
 from addFeatures.daily import DailyData 
 
 engine = sa.create_engine("postgresql+psycopg2://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
@@ -57,7 +57,7 @@ def df_to_db(df, tbl_name, idx_clmn_lst, engine=engine):
         method="multi"
         )
     
-    
+    # TODO: Return rows inserted
     return df.shape
 
 with Flow("Prepare load db data") as etl_moc_flow:
@@ -70,7 +70,7 @@ with Flow("Prepare load db data") as etl_moc_flow:
     tsx_moc_df = scrape_tsx_moc(tsx_url, put_dir)
 
     # 2. Map tsx symbols to yhoo
-    yhooMap =  TsxToYhoo()
+    yhooMap =  MapTickerSymbols()
     moc_key_df= yhooMap(tsx_moc_df)
 
     # 3. Download 1min day bars
@@ -89,7 +89,7 @@ with Flow("Prepare load db data") as etl_moc_flow:
     num_rows_ins = df_to_db(eod_df, tbl_name="eod", idx_clmn_lst=index_clmn_lst, engine=engine)
 
     # 7. Write to db
-    num_rows_ins = df_to_db(eod_df, tbl_name="moc_daily", idx_clmn_lst=index_clmn_lst, engine=engine)
+    num_rows_ins = df_to_db(moc_df, tbl_name="moc_daily", idx_clmn_lst=index_clmn_lst, engine=engine)
 
 
 if __name__ == "__main__":

@@ -7,7 +7,7 @@ def pre_moc_volume(intraday_df, date_clmn_nm, yhoo_sym_clmn_nm):
     vol_df = intraday_df[intraday_df[date_clmn_nm].dt.time.between(
         dt.time(15,40,0),
         dt.time(16,40,0)
-        )].groupby(yhoo_sym_clmn_nm, as_index=False)["volume"].sum()
+        )].groupby([date_clmn_nm, yhoo_sym_clmn_nm], as_index=False)["volume"].sum()
     
     vol_df.rename(columns = {'volume':'pre_moc_volume'}, inplace = True)
     
