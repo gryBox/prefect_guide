@@ -6,6 +6,9 @@ import humps
 
 import yfinance as yf
 
+from addFeatures import moc as mocft
+
+
 import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -74,7 +77,8 @@ class DailyData(object):
             left_on=[self.yhoo_sym_clmn_nm, self.date_clmn_nm],
             right_on=[self.yhoo_sym_clmn_nm, "Date"]
         )
-        eod_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
+
+        eod_moc_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
 
         
         return eod_moc_df
@@ -109,9 +113,33 @@ class DailyData(object):
 
         ohlc_1min_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
         
-        
+
+
+        #ohlc_1min_df = ohlc_1min_df.astype({'volume': 'int'}).dtypes
         
         return ohlc_1min_df
+
+    def prepare_moc_data(self, intraday_df, eod_df):
+        # self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
+        # self.date_clmn_nm = date_clmn_nm
+        
+        # 1. Get pre moc volume
+        vol_df = mocft.pre_moc_volume(intraday_df, self.date_clmn_nm, self.yhoo_sym_clmn_nm )
+
+        # 2. Filter columns for base moc
+        moc_df = eod_df[[
+            'imbalance_side','imbalance_size','imbalance_reference_price',
+            self.date_clmn_nm, self.yhoo_sym_clmn_nm, "close", "shares_outstanding", "shares_short", 
+            "sector", "held_percent_institutions", "book_value"]]
+        
+        # 3. Merge 
+        moc_df = moc_df.merge(vol_df, on="yahoo_symbol", how="left")
+        
+        return moc_df
+
+    def prepare_pre_moc_data(self):
+        return pre_moc_df
+
 
 if __name__ == "__main__":
     pass

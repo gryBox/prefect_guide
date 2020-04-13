@@ -37,14 +37,6 @@ def get_eod_data(moc_key_df):
     return eod_df
 
 @task
-def build_moc_data(intraday_df, eod_df):
-    dailyData =  DailyData()
-    moc_df = dailyData.prepare_moc_data(intraday_df, eod_df)
-
-    return moc_df
-
-
-@task
 def df_to_db(df, tbl_name, idx_clmn_lst, engine=engine):
 
     df = df.set_index(idx_clmn_lst)
@@ -68,22 +60,32 @@ with Flow("Prepare load db data") as etl_moc_flow:
     index_clmn_lst = Parameter("index_clmn_lst", default=["moc_date", "yahoo_symbol"])
 
     tsx_moc_df = scrape_tsx_moc(tsx_url, put_dir)
+    
+    df_lst = load_tsx_moc_data.map(files_to_get_lst)
+    
+    ifelse(
+        files_to_get_lst.is_equal(None),
+        tsx_moc_df,
+        df_lst
+    )
+
+    mod_df_lst = merge([tsx_moc_df], df_lst)
 
     # 2. Map tsx symbols to yhoo
     yhooMap =  TsxToYhoo()
-    moc_key_df= yhooMap(tsx_moc_df)
+    moc_key_df_lst = yhooMap.map(mod_df_lst)
 
     # 3. Download 1min day bars
-    intraday_df = get_1min_ohlc(moc_key_df)
+    intraday_df_lst = get_1min_ohlc.map(moc_key_df_lst)
 
     # 4. Get EOD ohlc and attributes
-    eod_df = get_eod_data(moc_key_df)
+    eod_df_lst = get_eod_features.map(moc_key_df_lst)
 
     # 5. Write to db
-    num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst, engine=engine)
+    num_rows_ins = df_to_db.map(intraday_df_lst, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst, engine=engine)
 
     # 6. Write to db
-    num_rows_ins = df_to_db(eod_df, tbl_name="eod", idx_clmn_lst=index_clmn_lst, engine=engine)
+    num_rows_ins = df_to_db.map(eod_df_lst, tbl_name="eod", idx_clmn_lst=index_clmn_lst, engine=engine)
 
 
 if __name__ == "__main__":
