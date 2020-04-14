@@ -2,19 +2,16 @@ from prefect import Flow, task, Task, Parameter, unmapped
 from prefect.tasks.control_flow import ifelse, merge
 
 import sqlalchemy as sa
+from datetime import timedelta
 import humps
 
 from extractMOCData.moc_data import TsxMocData 
 from normalize.ticker_symbols import MapTickerSymbols
 from addFeatures.daily import DailyData 
 
-engine = sa.create_engine("postgresql+psycopg2://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
+engine = sa.create_engine("postgres://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
 
-@task
-def load_tsx_moc_data(file_to_get, parse_dates=["moc_date"]):
-    return  pd.read_csv(file_to_get, parse_dates=parse_dates, na_filter=False)
-
-@task
+@task(max_retries=3, retry_delay=timedelta(seconds=10))
 def scrape_tsx_moc(tsx_url, put_dir):
     tsxMoc = TsxMocData(url=tsx_url, put_dir=put_dir)
     moc_df = tsxMoc.scrape_moc_data()
@@ -94,3 +91,5 @@ with Flow("Prepare load db data") as etl_moc_flow:
 
 if __name__ == "__main__":
     etl_moc_flow.visualize()
+    etl_state = etl_moc_flow.run()
+    etl_moc_flow.visualize(flow_state=etl_state) 

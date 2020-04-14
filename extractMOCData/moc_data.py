@@ -30,7 +30,7 @@ class TsxMocData(object):
     def set_output_flnm(self):
     # Set file name and flpth 
         today = pd.Timestamp('today')
-        self.output_filename = f"{self.flnm}_{today:%Y%m%d}.json"
+        self.output_filename = f"{self.flnm}_{today:%Y%m%d}.csv"
 
 
 
@@ -54,7 +54,7 @@ class TsxMocData(object):
         df_list = pd.read_html(html, header=[0], displayed_only=False)
 
         moc_df = df_list[-1]
-        moc_df["moc_date"] = dt.datetime.today().strftime('%Y%m%d')
+        moc_df["moc_date"] = dt.datetime.today().date()
 
         logger.info(f"MOC download shape {moc_df.shape}")
 
@@ -72,11 +72,9 @@ class TsxMocData(object):
     def write_tsx_moc(self, df):
 
         logger.info(f"Writing to file: {self.output_filepath}")
-        df.to_json(
+        df.to_csv(
             self.output_filepath, 
-            orient="records",
-            double_precision=5,
-            date_unit="s"
+            index=False
             )
 
         return self.output_filepath

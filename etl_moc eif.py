@@ -5,7 +5,7 @@ import sqlalchemy as sa
 import humps
 
 from extractMOCData.moc_data import TsxMocData 
-from normalize.ticker_symbols import TsxToYhoo
+from normalize.ticker_symbols import MapTickerSymbols
 from addFeatures.daily import DailyData 
 
 engine = sa.create_engine("postgresql+psycopg2://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
@@ -16,7 +16,7 @@ def load_tsx_moc_data(file_to_get, parse_dates=["moc_date"]):
 
 @task
 def scrape_tsx_moc(tsx_url, put_dir):
-    tsxMoc = TsxMocData(url=tsx_url, put_dir=put_dir)
+    tsxMoc = MapTickerSymbols(url=tsx_url, put_dir=put_dir)
     moc_df = tsxMoc.scrape_moc_data()
     return moc_df
 
@@ -72,14 +72,14 @@ with Flow("Prepare load db data") as etl_moc_flow:
     mod_df_lst = merge([tsx_moc_df], df_lst)
 
     # 2. Map tsx symbols to yhoo
-    yhooMap =  TsxToYhoo()
+    yhooMap =  MapTickerSymbols()
     moc_key_df_lst = yhooMap.map(mod_df_lst)
 
     # 3. Download 1min day bars
     intraday_df_lst = get_1min_ohlc.map(moc_key_df_lst)
 
     # 4. Get EOD ohlc and attributes
-    eod_df_lst = get_eod_features.map(moc_key_df_lst)
+    eod_df_lst = get_eod_data.map(moc_key_df_lst)
 
     # 5. Write to db
     num_rows_ins = df_to_db.map(intraday_df_lst, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst, engine=engine)
@@ -89,4 +89,14 @@ with Flow("Prepare load db data") as etl_moc_flow:
 
 
 if __name__ == "__main__":
+
+    # Get a list of files from a directory
+    moc_file_lst = get_moc_file_lst.run("tsx-moc")
+
     etl_moc_flow.visualize()
+    etl_state = etl_moc_flow.run(
+        parameters=dict(
+            files_to_get_lst=
+        )
+    )
+    etl_moc_flow.visualize(flow_state=etl_state) 

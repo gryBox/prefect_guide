@@ -1,6 +1,10 @@
 from prefect import Task
 
 import pandas as pd
+from pandas.core.common import SettingWithCopyWarning
+import warnings
+warnings.simplefilter(action="ignore", category=SettingWithCopyWarning)
+
 from datetime import timedelta, datetime
 import humps
 
@@ -110,13 +114,15 @@ class DailyData(object):
                 'level_1': self.yhoo_sym_clmn_nm,
                 "Datetime": self.date_clmn_nm
             })
+
+            # Filter out some bad dates
+            df = df[df[self.date_clmn_nm].dt.date==st_date.date()]
+
             df_lst.append(df.round(4))
         
         ohlc_1min_df = pd.concat(df_lst, ignore_index=True)
 
         ohlc_1min_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
-        
-
 
         #ohlc_1min_df = ohlc_1min_df.astype({'volume': 'int'}).dtypes
         
@@ -135,22 +141,19 @@ class DailyData(object):
             'imbalance_reference_price', self.yhoo_sym_clmn_nm, "close", "shares_outstanding",
             "shares_short", "sector", "held_percent_institutions", "book_value"]]
         
+        moc_df[self.date_clmn_nm] = moc_df[self.date_clmn_nm].dt.date
         # # 3. Merge 
-        # moc_df[self.date_clmn_nm] = pd.to_datetime(moc_df[self.date_clmn_nm]) \
-        #     .dt.tz_localize('America/Toronto') \
-        #     .dt.tz_convert('America/Toronto')
-
-        # moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
+        moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
         
-        # # 4. drop rows with na 
-        # moc_df.dropna(axis=0, how="any", subset=["close", "pre_moc_volume"], inplace=True)
+        # 4. drop rows with na 
+        moc_df.dropna(axis=0, how="any", subset=["close", "pre_moc_volume"], inplace=True)
         
-        # # 5. Add some basic features
-        # #moc_df = mocft.basic_pnls(moc_df)
-        # moc_df["pre_moc_mkt_cap"] = moc_df["imbalance_reference_price"]*moc_df["shares_outstanding"]
+        # 5. Add some basic features
+        moc_df = mocft.basic_pnls(moc_df)
+        moc_df["pre_moc_mkt_cap"] = moc_df["imbalance_reference_price"]*moc_df["shares_outstanding"]
 
         
-        return moc_df, vol_df
+        return moc_df
 
     def prepare_pre_moc_data(self):
         return pre_moc_df
