@@ -25,31 +25,29 @@ class DailyData(object):
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
         self.date_clmn_nm = date_clmn_nm
 
-    def yhoo_eod_data(self, sym_to_get, st_dt):
+    def yhoo_eod_data(self, sym_to_get, st_day):
 
-        end_dt = st_dt + timedelta(days=1)
-
-        sym = yf.Ticker(sym_to_get)
-        yhoo_price_df = sym.history(
-            start=st_dt.strftime('%Y-%m-%d'), 
-            end=end_dt.strftime('%Y-%m-%d'), 
+        # Get historical data
+        yhoo_price_df = sym_to_get.history(
+            start=st_day.date(), 
+            end=st_day.date() + timedelta(days=1), 
             auto_adjust=True,
             interval="1d"
         ).head(1)
 
         # Add symbol to ohlc
-        yhoo_price_df[self.yhoo_sym_clmn_nm] = sym_to_get
+        yhoo_price_df[self.yhoo_sym_clmn_nm] = sym_to_get.ticker
         yhoo_price_df = yhoo_price_df.reset_index()    
         #print
         try:
-            info_df = pd.DataFrame([sym.info])
+            info_df = pd.DataFrame([sym_to_get.info])
             # print(info_df["sector"])
             yhoo_eod_df = yhoo_price_df.join(info_df, how="left")
             # print(yhoo_eod_df)
             return yhoo_eod_df
 
         except IndexError as error:
-            logging.info(f"Error getting info from yahoo for sym {sym.ticker}")
+            logging.info(f"Error getting info from yahoo for sym {sym_to_get.ticker}")
             
 
             return yhoo_price_df
@@ -60,11 +58,16 @@ class DailyData(object):
         df_lst = []
         for date_grp in grpd_dates:
             
-            # 1. List of symbols to get
-            tickers = date_grp[1][ self.yhoo_sym_clmn_nm]
+            # a. List of symbols to get
+            symbol_lst = date_grp[1][self.yhoo_sym_clmn_nm].values.tolist()
+           
+            # b. Initialize yahoo symbols 
+            tickers = yf.Tickers(symbol_lst)
             
-            yhoo_eod_df_lst = [self.yhoo_eod_data(sym, date_grp[0]) for sym in tickers]
+            # c. Get the data for the tickers
+            yhoo_eod_df_lst = [self.yhoo_eod_data(sym, date_grp[0]) for sym in tickers.tickers]
             
+            # d. Concat all the ohlc and other features for each symbol
             yhoo_eod_df = pd.concat(yhoo_eod_df_lst, ignore_index=True)
             
             df_lst.append(yhoo_eod_df)
@@ -90,16 +93,16 @@ class DailyData(object):
         
         df_lst = []
         for grp in grpd_intraday_dfs:
-            # 1. Ge
+            # 1. Get  lsit of symbols
             symbol_lst = grp[1][self.yhoo_sym_clmn_nm].values.tolist()
+
+            # 2. Date to get
             st_date = grp[0]
-            
-            end_dt = st_date + timedelta(days=1)
             
             df = yf.download(
                 symbol_lst, 
-                start=st_date.strftime('%Y-%m-%d'), 
-                end=end_dt.strftime('%Y-%m-%d'),
+                start=st_date.date(), 
+                end=st_date.date() + timedelta(days=1), 
                 interval='1m'
                 #group_by = 'ticker'
             )
@@ -132,13 +135,22 @@ class DailyData(object):
             'imbalance_reference_price', self.yhoo_sym_clmn_nm, "close", "shares_outstanding",
             "shares_short", "sector", "held_percent_institutions", "book_value"]]
         
-        # 3. Merge 
-        moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
+        # # 3. Merge 
+        # moc_df[self.date_clmn_nm] = pd.to_datetime(moc_df[self.date_clmn_nm]) \
+        #     .dt.tz_localize('America/Toronto') \
+        #     .dt.tz_convert('America/Toronto')
+
+        # moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
         
-        # 4. drop rows with na 
-        moc_df.dropna(axis=0, how="any", subset=["close", "volume"], inplace=True)
+        # # 4. drop rows with na 
+        # moc_df.dropna(axis=0, how="any", subset=["close", "pre_moc_volume"], inplace=True)
         
-        return moc_df
+        # # 5. Add some basic features
+        # #moc_df = mocft.basic_pnls(moc_df)
+        # moc_df["pre_moc_mkt_cap"] = moc_df["imbalance_reference_price"]*moc_df["shares_outstanding"]
+
+        
+        return moc_df, vol_df
 
     def prepare_pre_moc_data(self):
         return pre_moc_df
