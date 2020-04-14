@@ -46,7 +46,7 @@ class DailyData(object):
             # print(yhoo_eod_df)
             return yhoo_eod_df
 
-        except IndexError as error:
+        except (IndexError, ValueError) as error:
             logging.info(f"Error getting info from yahoo for sym {sym_to_get.ticker}")
             
 
