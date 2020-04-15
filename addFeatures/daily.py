@@ -33,8 +33,8 @@ class DailyData(object):
 
         # Get historical data
         yhoo_price_df = sym_to_get.history(
-            start=st_day.date(), 
-            end=st_day.date() + timedelta(days=1), 
+            start=st_day, 
+            end=st_day + timedelta(days=1), 
             auto_adjust=True,
             interval="1d"
         ).head(1)
@@ -105,8 +105,8 @@ class DailyData(object):
             
             df = yf.download(
                 symbol_lst, 
-                start=st_date.date(), 
-                end=st_date.date() + timedelta(days=1), 
+                start=st_date, 
+                end=st_date + timedelta(days=1), 
                 interval='1m'
                 #group_by = 'ticker'
             )
