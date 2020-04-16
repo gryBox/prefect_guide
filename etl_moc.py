@@ -1,5 +1,5 @@
 from prefect import Flow, task, Task, Parameter, unmapped
-from prefect.tasks.control_flow import ifelse, merge'
+from prefect.tasks.control_flow import ifelse, merge
 from prefect.client import Secret
 
 import sqlalchemy as sa
@@ -10,7 +10,7 @@ from extractMOCData.moc_data import TsxMocData
 from normalize.ticker_symbols import MapTickerSymbols
 from addFeatures.daily import DailyData 
 
-dbConn = Secret("moc-pg-db_conn_str")
+dbConn = Secret("moc_pg_db_conn_str")
 conn_str = dbConn.get()
 
 @task(max_retries=3, retry_delay=timedelta(seconds=10))
