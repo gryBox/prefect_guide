@@ -50,7 +50,7 @@ class DailyData(object):
             # print(yhoo_eod_df)
             return yhoo_eod_df
 
-        except (IndexError, ValueError) as error:
+        except (IndexError, ValueError, KeyError) as error:
             logging.info(f"Error getting info from yahoo for sym {sym_to_get.ticker}")
             
 
@@ -116,7 +116,7 @@ class DailyData(object):
             })
 
             # Filter out some bad dates
-            df = df[df[self.date_clmn_nm].dt.date==st_date.date()]
+            df = df[df[self.date_clmn_nm].dt.date==st_date]
 
             df_lst.append(df.round(4))
         
