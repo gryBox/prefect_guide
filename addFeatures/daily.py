@@ -29,90 +29,62 @@ class DailyData(object):
         self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
         self.date_clmn_nm = date_clmn_nm
 
-    def yhoo_eod_data(self, sym_to_get, st_day):
+    def get_yahoo_sym_info(self, sym_to_get):
 
-        # Get historical data
-        yhoo_price_df = sym_to_get.history(
-            start=st_day, 
-            end=st_day + timedelta(days=1), 
-            auto_adjust=True,
-            interval="1d"
-        ).head(1)
-
-        # Add symbol to ohlc
-        yhoo_price_df[self.yhoo_sym_clmn_nm] = sym_to_get.ticker
-        yhoo_price_df = yhoo_price_df.reset_index()    
-        #print
         try:
             info_df = pd.DataFrame([sym_to_get.info])
-            # print(info_df["sector"])
-            yhoo_eod_df = yhoo_price_df.join(info_df, how="left")
+       
             # print(yhoo_eod_df)
-            return yhoo_eod_df
+            return info_df
 
         except (IndexError, ValueError, KeyError) as error:
             logging.info(f"Error getting info from yahoo for sym {sym_to_get.ticker}")
             
+            return None
 
-            return yhoo_price_df
+    def get_sym_info_data(self, moc_key_df):
 
-    def get_eod_data(self, moc_key_df):
-        grpd_dates = moc_key_df.groupby(by=self.date_clmn_nm)
-
-        df_lst = []
-        for date_grp in grpd_dates:
-            
-            # a. List of symbols to get
-            symbol_lst = date_grp[1][self.yhoo_sym_clmn_nm].values.tolist()
-           
-            # b. Initialize yahoo symbols 
-            tickers = yf.Tickers(symbol_lst)
-            
-            # c. Get the data for the tickers
-            yhoo_eod_df_lst = [self.yhoo_eod_data(sym, date_grp[0]) for sym in tickers.tickers]
-            
-            # d. Concat all the ohlc and other features for each symbol
-            yhoo_eod_df = pd.concat(yhoo_eod_df_lst, ignore_index=True)
-            
-            df_lst.append(yhoo_eod_df)
-
-        eod_df = pd.concat(df_lst, ignore_index=True)
-
-        eod_moc_df = moc_key_df.merge(
-            eod_df, 
-            how="left", 
-            left_on=[self.yhoo_sym_clmn_nm, self.date_clmn_nm],
-            right_on=[self.yhoo_sym_clmn_nm, "Date"]
-        )
+        # 1.  Get ticker info
+        symbol_lst = moc_key_df[self.yhoo_sym_clmn_nm].unique().tolist()
         
-        eod_moc_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
-
+        tickers = yf.Tickers(symbol_lst)
         
-        return eod_moc_df
+        info_df_lst = [self.get_yahoo_sym_info(sym) for sym in tickers.tickers]
 
-    def get_intraday_data(self, moc_key_df):
+        info_df = pd.concat(info_df_lst, ignore_index=True)
+        info_df = info_df.rename(columns={'symbol': self.yhoo_sym_clmn_nm})
+        
+        info_df.rename(
+            columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), 
+            inplace=True
+            )
+        
+        return info_df
+
+    def get_yahoo_ohlc_data(self, moc_key_df, interval):
         # 1. Get a list of dfs with ohlc and date as index
         # 1. download EOD yahoo data date
-        grpd_intraday_dfs = moc_key_df.groupby(by=[self.date_clmn_nm])
+        grpd_moc_dts = moc_key_df.groupby(by=[self.date_clmn_nm])
         
         df_lst = []
-        for grp in grpd_intraday_dfs:
+        for grp in grpd_moc_dts:
             # 1. Get  lsit of symbols
             symbol_lst = grp[1][self.yhoo_sym_clmn_nm].values.tolist()
 
             # 2. Date to get
-            st_date = grp[0]
-            
+            st_date = grp[0].date()
+            print(st_date)
             df = yf.download(
-                symbol_lst, 
-                start=st_date, 
-                end=st_date + timedelta(days=1), 
-                interval='1m'
-                #group_by = 'ticker'
-            )
+                    symbol_lst, 
+                    start=st_date, 
+                    end=st_date + timedelta(days=1), 
+                    interval=interval
+                    #group_by = 'ticker'
+                )
             df = df.stack(dropna=False).reset_index().rename(columns={
                 'level_1': self.yhoo_sym_clmn_nm,
-                "Datetime": self.date_clmn_nm
+                "Datetime": self.date_clmn_nm,
+                "Date": self.date_clmn_nm 
             })
 
             # Filter out some bad dates
@@ -120,13 +92,13 @@ class DailyData(object):
 
             df_lst.append(df.round(4))
         
-        ohlc_1min_df = pd.concat(df_lst, ignore_index=True)
+        ohlc_df = pd.concat(df_lst, ignore_index=True)
 
-        ohlc_1min_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
+        ohlc_df.rename(columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), inplace=True)
 
         #ohlc_1min_df = ohlc_1min_df.astype({'volume': 'int'}).dtypes
         
-        return ohlc_1min_df
+        return ohlc_df
 
     def prepare_moc_data(self, intraday_df, eod_df):
         # self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
