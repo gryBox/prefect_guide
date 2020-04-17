@@ -59,11 +59,6 @@ def get_1min_ohlc(moc_key_df):
 
 @task
 def get_eod_price_data(moc_key_df):
-    # 1. Normalize columns
-    moc_key_df.rename(
-            columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), 
-            inplace=True
-            )
 
     dailyData =  DailyData()
 
@@ -79,29 +74,27 @@ def get_eod_price_data(moc_key_df):
     # Set datetime to date
     eod_price_df[dailyData.date_clmn_nm] = eod_price_df[dailyData.date_clmn_nm].dt.date
 
-    #print(eod_price_df[dailyData.date_clmn_nm].dtype)
-
-    # 4. merge dfs
-    eod_price_df = moc_key_df.merge(
-        eod_price_df, 
-        how="left", 
-        left_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
-        right_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm]
-    ).copy()
-
     return eod_price_df
 
 @task
-def get_sym_info(eod_price_df):
+def get_sym_info(moc_key_df):
     """
     Input any df that has a list of yahoo symbols
     """
     
-    # # 1. get ticker info
+    # 1. get ticker info
     dailyData =  DailyData()
-    info_df = dailyData.get_sym_info_data(eod_price_df)
+    info_df = dailyData.get_sym_info_data(moc_key_df)
 
-    return info_df
+    # 3. Add keys
+    eod_info_df = moc_key_df.merge(
+        info_df,
+        how="left", 
+        left_on=[dailyData.yhoo_sym_clmn_nm], 
+        right_on=[dailyData.yhoo_sym_clmn_nm]
+    )
+        
+    return eod_info_df
 
 @task
 def build_moc_data( intraday_df, eod_df, eod_info_df):
@@ -125,7 +118,8 @@ def df_to_db(df, tbl_name, idx_clmn_lst, conn_str=None):
         con=engine,
         if_exists="append",
         index=True,
-        method="multi"
+        method="multi",
+        chunksize=5000
         )
     
     # TODO: Return rows inserted
@@ -168,7 +162,7 @@ with Flow("Prepare load db data") as etl_moc_flow:
     num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst)
 
     # 10. Write to db
-    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_attributes", idx_clmn_lst=["yahoo_symbol"])
+    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_info", idx_clmn_lst=index_clmn_lst)
 
 
 if __name__ == "__main__":

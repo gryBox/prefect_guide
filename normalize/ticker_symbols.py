@@ -2,6 +2,7 @@ from prefect import Task
 
 import pandas as pd
 
+import humps
 
 import logging
 logger = logging.getLogger()
@@ -43,4 +44,12 @@ class MapTickerSymbols(Task):
          # 1. Map TSX symbols to yhoo
         df[self.yhoo_sym_clmn_nm] = df[self.symbol_clmn_nm].apply(self.map_tsx_to_yhoo_sym)
         df.rename(columns={self.symbol_clmn_nm: self.tsx_sym_clmn_nm}, inplace=True)
+
+        # 2. Normalize columns
+        df.rename(
+            columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), 
+            inplace=True
+        )
+
+
         return df

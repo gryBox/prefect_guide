@@ -102,11 +102,11 @@ class DailyData(object):
     def prepare_moc_data(self, intraday_df, eod_price_df, eod_info_df):
         
         # Merge price and info 
-        eod_df = eod_price_df.merge(
-            eod_info_df, 
+        eod_df = eod_info_df.merge(
+            eod_price_df, 
             how="left", 
-            left_on=[self.yhoo_sym_clmn_nm], 
-            right_on=[self.yhoo_sym_clmn_nm],
+            left_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], 
+            right_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm]
         )
         
         # 1. Get pre moc volume
