@@ -54,7 +54,7 @@ class TsxMocData(object):
         df_list = pd.read_html(html, header=[0], displayed_only=False)
 
         moc_df = df_list[-1]
-        moc_df["moc_date"] = dt.datetime.today().date()
+        
 
         logger.info(f"MOC download shape {moc_df.shape}")
 
@@ -87,7 +87,7 @@ class TsxMocData(object):
 
         # 2. Clean
         moc_df = self.clean_tsx_data(raw_moc_df, self.fillna_clmn)
-
+        moc_df["moc_date"] = dt.datetime.today().date()
         return moc_df
 
 

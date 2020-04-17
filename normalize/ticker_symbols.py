@@ -26,10 +26,10 @@ class MapTickerSymbols(Task):
         #print(tsx_sym)
         # Check for prefereds 
         if tsx_sym.find(self.prfrd_pattern)!=-1:
-            print(tsx_sym)
+            #print(tsx_sym)
             pr_parts = tsx_sym.partition(self.prfrd_pattern)
             yhoo_sym = f"{pr_parts[0]}-{pr_parts[1][1]}{pr_parts[2]}.TO"
-            print(yhoo_sym)
+            #print(yhoo_sym)
         else:
             # Replace equity extensions (i.e. UN, PR)
             yhoo_sym = tsx_sym.replace(".", "-")

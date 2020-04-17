@@ -46,7 +46,7 @@ class DailyData(object):
 
         # 1.  Get ticker info
         symbol_lst = moc_key_df[self.yhoo_sym_clmn_nm].unique().tolist()
-        
+        print(len(symbol_lst))
         tickers = yf.Tickers(symbol_lst)
         
         info_df_lst = [self.get_yahoo_sym_info(sym) for sym in tickers.tickers]
@@ -63,7 +63,6 @@ class DailyData(object):
 
     def get_yahoo_ohlc_data(self, moc_key_df, interval):
         # 1. Get a list of dfs with ohlc and date as index
-        # 1. download EOD yahoo data date
         grpd_moc_dts = moc_key_df.groupby(by=[self.date_clmn_nm])
         
         df_lst = []
@@ -72,7 +71,7 @@ class DailyData(object):
             symbol_lst = grp[1][self.yhoo_sym_clmn_nm].values.tolist()
 
             # 2. Date to get
-            st_date = grp[0].date()
+            st_date = grp[0]#.date()
             print(st_date)
             df = yf.download(
                     symbol_lst, 
@@ -86,7 +85,7 @@ class DailyData(object):
                 "Datetime": self.date_clmn_nm,
                 "Date": self.date_clmn_nm 
             })
-
+            #print(df.columns)
             # Filter out some bad dates
             df = df[df[self.date_clmn_nm].dt.date==st_date]
 
@@ -100,9 +99,15 @@ class DailyData(object):
         
         return ohlc_df
 
-    def prepare_moc_data(self, intraday_df, eod_df):
-        # self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
-        # self.date_clmn_nm = date_clmn_nm
+    def prepare_moc_data(self, intraday_df, eod_price_df, eod_info_df):
+        
+        # Merge price and info 
+        eod_df = eod_price_df.merge(
+            eod_info_df, 
+            how="left", 
+            left_on=[self.yhoo_sym_clmn_nm], 
+            right_on=[self.yhoo_sym_clmn_nm],
+        )
         
         # 1. Get pre moc volume
         vol_df = mocft.pre_moc_volume(intraday_df, self.date_clmn_nm, self.yhoo_sym_clmn_nm )
@@ -112,8 +117,7 @@ class DailyData(object):
             self.tsx_symbol_clmn_nm, self.date_clmn_nm, 'imbalance_side','imbalance_size',
             'imbalance_reference_price', self.yhoo_sym_clmn_nm, "close", "shares_outstanding",
             "shares_short", "sector", "held_percent_institutions", "book_value"]]
-        
-        moc_df[self.date_clmn_nm] = moc_df[self.date_clmn_nm].dt.date
+    
         # # 3. Merge 
         moc_df = moc_df.merge(vol_df, on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], how="left")
         

@@ -46,7 +46,7 @@ def get_db_creds(secret_name="moc-pg-db", region_name="us-east-2"):
 def scrape_tsx_moc(tsx_url, put_dir):
     tsxMoc = TsxMocData(url=tsx_url, put_dir=put_dir)
     moc_df = tsxMoc.scrape_moc_data()
-    return moc_df
+    return moc_df #.head()
 
 
 @task
@@ -55,11 +55,10 @@ def get_1min_ohlc(moc_key_df):
     dailyData =  DailyData()
     intraday_df = dailyData.get_yahoo_ohlc_data(moc_key_df, interval='1m')
 
-
     return intraday_df.round(3)
 
 @task
-def get_eod_data(moc_key_df, info_df):
+def get_eod_price_data(moc_key_df):
     # 1. Normalize columns
     moc_key_df.rename(
             columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), 
@@ -67,42 +66,47 @@ def get_eod_data(moc_key_df, info_df):
             )
 
     dailyData =  DailyData()
-    # 1. Get daily price data 
+
+    # 2. Get daily price data 
     eod_price_df = dailyData.get_yahoo_ohlc_data(moc_key_df, interval="1d")
     
-    # 2. Filter out duplicates that can arise from AH/adjusted volumes
+    # 3. Filter out duplicates that can arise from AH/adjusted volumes
     eod_price_df = eod_price_df.drop_duplicates(
         [dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
         ignore_index=True
         )
+    
+    # Set datetime to date
+    eod_price_df[dailyData.date_clmn_nm] = eod_price_df[dailyData.date_clmn_nm].dt.date
 
-     # 4. merge dfs
-    eod_df = moc_key_df.merge(
+    #print(eod_price_df[dailyData.date_clmn_nm].dtype)
+
+    # 4. merge dfs
+    eod_price_df = moc_key_df.merge(
         eod_price_df, 
         how="left", 
         left_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
-        right_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm],
-        validate="one_to_one"
-    )
+        right_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm]
+    ).copy()
 
-    # # 5. get ticker info
-    # info_df = dailyData.get_sym_info_data(moc_key_df)
-
-    eod_df = eod_df.merge(
-        info_df, 
-        how="left", 
-        left_on=[dailyData.yhoo_sym_clmn_nm], 
-        right_on=[dailyData.yhoo_sym_clmn_nm],
-        validate="one_to_one"
-    )
-
-    return eod_df
-
+    return eod_price_df
 
 @task
-def build_moc_data( intraday_df, eod_df):
+def get_sym_info(eod_price_df):
+    """
+    Input any df that has a list of yahoo symbols
+    """
+    
+    # # 1. get ticker info
     dailyData =  DailyData()
-    moc_df = dailyData.prepare_moc_data(intraday_df, eod_df)
+    info_df = dailyData.get_sym_info_data(eod_price_df)
+
+    return info_df
+
+@task
+def build_moc_data( intraday_df, eod_df, eod_info_df):
+    dailyData =  DailyData()
+    moc_df = dailyData.prepare_moc_data(intraday_df, eod_df, eod_info_df)
 
     return moc_df
 
@@ -115,7 +119,7 @@ def df_to_db(df, tbl_name, idx_clmn_lst, conn_str=None):
 
     df = df.set_index(idx_clmn_lst)
 
-    engine = sa.create_engine("postgresql://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/{}")
+    engine = sa.create_engine("postgresql://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
     df.to_sql(
         name=tbl_name,
         con=engine,
@@ -145,20 +149,26 @@ with Flow("Prepare load db data") as etl_moc_flow:
     # 3. Download 1min day bars
     intraday_df = get_1min_ohlc(moc_key_df)
 
-    # # 4. Get EOD ohlc and attributes
-    # eod_df = get_eod_data(moc_key_df)
+    # 4. Get EOD ohlc and attributes
+    eod_price_df = get_eod_price_data(moc_key_df)
 
-    # 5. Craete daily moc table (used for training)
-    # moc_df = build_moc_data(intraday_df, eod_df)
+    # 5. Get share short, float and other attributes for a ticker
+    eod_info_df = get_sym_info(moc_key_df)
 
-    # 5. Write to db
-    num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst)
-
-    # 6. Write to db
-    # num_rows_ins = df_to_db(eod_df, tbl_name="eod", idx_clmn_lst=index_clmn_lst)
+    # 6. Craete daily moc table (used for training)
+    moc_df = build_moc_data(intraday_df, eod_price_df, eod_info_df)
 
     # 7. Write to db
-    # num_rows_ins = df_to_db(moc_df, tbl_name="moc_daily", idx_clmn_lst=index_clmn_lst)
+    num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst)
+
+    # 8. Write to db
+    num_rows_ins = df_to_db(eod_price_df, tbl_name="eod_prices", idx_clmn_lst=index_clmn_lst)
+
+    # 9. Write to db
+    num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst)
+
+    # 10. Write to db
+    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_attributes", idx_clmn_lst=["yahoo_symbol"])
 
 
 if __name__ == "__main__":
