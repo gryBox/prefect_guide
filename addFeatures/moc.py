@@ -26,7 +26,7 @@ def basic_pnls(df):
     df["moc_return"] = df["moc_price_change"]/df["imbalance_reference_price"]
 
     df["go_moc_return"] = df.apply(
-        lambda row: -1*row["moc_return"] if row['imbalance_side']=="SELL" else row["return"],
+        lambda row: -1*row["moc_return"] if row['imbalance_side']=="SELL" else row["moc_return"],
         axis=1 )
 
     df["go_moc_price_change"] = df.apply(
