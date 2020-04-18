@@ -74,6 +74,16 @@ def get_eod_price_data(moc_key_df):
     # Set datetime to date
     eod_price_df[dailyData.date_clmn_nm] = eod_price_df[dailyData.date_clmn_nm].dt.date
 
+    
+    # 3. Add tsx price data (moc_key_df)
+    eod_price_df = moc_key_df.merge(
+        eod_price_df,
+        how="left", 
+        left_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
+        right_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm]
+    ).copy()
+
+
     return eod_price_df
 
 @task
@@ -86,8 +96,14 @@ def get_sym_info(moc_key_df):
     dailyData =  DailyData()
     info_df = dailyData.get_sym_info_data(moc_key_df)
 
+    sub_moc_key_df = moc_key_df[[
+        dailyData.date_clmn_nm,
+        dailyData.yhoo_sym_clmn_nm,
+        dailyData.tsx_symbol_clmn_nm
+    ]]
+
     # 3. Add keys
-    eod_info_df = moc_key_df.merge(
+    eod_info_df = sub_moc_key_df.merge(
         info_df,
         how="left", 
         left_on=[dailyData.yhoo_sym_clmn_nm], 
@@ -162,7 +178,7 @@ with Flow("Prepare load db data") as etl_moc_flow:
     num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst)
 
     # 10. Write to db
-    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_info", idx_clmn_lst=index_clmn_lst)
+    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_sym_info", idx_clmn_lst=index_clmn_lst)
 
 
 if __name__ == "__main__":

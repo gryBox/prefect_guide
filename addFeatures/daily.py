@@ -102,11 +102,11 @@ class DailyData(object):
     def prepare_moc_data(self, intraday_df, eod_price_df, eod_info_df):
         
         # Merge price and info 
-        eod_df = eod_info_df.merge(
-            eod_price_df, 
+        eod_df = eod_price_df.merge(
+            eod_info_df, 
             how="left", 
-            left_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm], 
-            right_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm]
+            left_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm, self.tsx_symbol_clmn_nm], 
+            right_on=[self.date_clmn_nm, self.yhoo_sym_clmn_nm, self.tsx_symbol_clmn_nm]
         )
         
         # 1. Get pre moc volume
@@ -127,7 +127,7 @@ class DailyData(object):
         # 5. Add some basic features
         moc_df = mocft.basic_pnls(moc_df)
         moc_df["pre_moc_mkt_cap"] = moc_df["imbalance_reference_price"]*moc_df["shares_outstanding"]
-
+        moc_df["imb_of_pre_moc_vol"] = moc_df["imbalance_size"]/moc_df["pre_moc_volume"]
         
         return moc_df
 

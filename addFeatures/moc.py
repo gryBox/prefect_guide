@@ -6,7 +6,7 @@ def pre_moc_volume(intraday_df, date_clmn_nm, yhoo_sym_clmn_nm):
     # 1. Get pre moc volume
     vol_df = intraday_df[intraday_df[date_clmn_nm].dt.time.between(
         dt.time(9,30,0),
-        dt.time(16,39,0)
+        dt.time(15,39,0)
         )]
 
     # 2. Convert dt to date only. 
@@ -22,15 +22,15 @@ def pre_moc_volume(intraday_df, date_clmn_nm, yhoo_sym_clmn_nm):
 
 def basic_pnls(df):
     # various returns
-    df["price_change"] = df["imbalance_reference_price"]-df["close"]
-    df["return"] = df["price_change"]/df["imbalance_reference_price"]
+    df["moc_price_change"] = df["close"] - df["imbalance_reference_price"]
+    df["moc_return"] = df["moc_price_change"]/df["imbalance_reference_price"]
 
-    df["moc_return"] = df.apply(
-        lambda row: -1*row["return"] if row['imbalance_side']=="SELL" else row["return"],
+    df["go_moc_return"] = df.apply(
+        lambda row: -1*row["moc_return"] if row['imbalance_side']=="SELL" else row["return"],
         axis=1 )
 
-    df["moc_price_change"] = df.apply(
-        lambda row: -1*row["price_change"] if row['imbalance_side']=="SELL" else row["price_change"],
+    df["go_moc_price_change"] = df.apply(
+        lambda row: -1*row["moc_price_change"] if row['imbalance_side']=="SELL" else row["moc_price_change"],
          axis=1 )
 
     return df
