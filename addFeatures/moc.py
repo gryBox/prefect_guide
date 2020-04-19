@@ -33,5 +33,10 @@ def basic_pnls(df):
         lambda row: -1*row["moc_price_change"] if row['imbalance_side']=="SELL" else row["moc_price_change"],
          axis=1 )
 
+    df["moc_delta"] = df.apply(
+        lambda row: -1*row["imbalance_size"] if row['imbalance_side']=="SELL" else row["imbalance_size"],
+            axis=1 
+    )
+
     return df
 
