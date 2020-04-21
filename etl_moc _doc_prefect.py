@@ -1,6 +1,6 @@
 from prefect import Flow, task, Task, Parameter, unmapped
 from prefect.tasks.control_flow import ifelse, merge
-from prefect.client import Secret
+from prefect.tasks.secrets.base import PrefectSecret
 
 import boto3
 
@@ -10,9 +10,9 @@ from datetime import timedelta
 import humps
 import requests
 
-# from extractMOCData.moc_data import TsxMocData 
-# from normalize.ticker_symbols import MapTickerSymbols
-# from addFeatures.daily import DailyData 
+from extractMOCData.moc_data import TsxMocData 
+from normalize.ticker_symbols import MapTickerSymbols
+from addFeatures.daily import DailyData 
 
 
 
@@ -22,7 +22,7 @@ import requests
 
 
 @task(max_retries=3, retry_delay=timedelta(seconds=10))
-def scrape_tsx_moc(url, date_clmn_nm="moc_date"):
+def scrape_tsx_moc(url, put_dir):
     """
     Scrape the TSX website Market on close website. Data only available after 15:40 pm Toronto time
     until 12 am.
@@ -30,68 +30,10 @@ def scrape_tsx_moc(url, date_clmn_nm="moc_date"):
     Use archived url for testing.       
     "https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     """
-
-    html = requests.get(url).content
-
-    df_list = pd.read_html(html, header=[0], displayed_only=False)
-
-    moc_df = df_list[-1]
-    moc_df[date_clmn_nm] = dt.datetime.today().date()
+    mocData = TsxMocData(url, put_dir)
+    tsx_moc_df = mocData.scrape_moc_data()
+    return tsx_moc_df#.head(3)
     
-    # One of the symbols is NA 
-    moc_df[fillna_clmn] = moc_df[fillna_clmn].fillna("NA")
-    
-    logger.info(f"MOC download shape {moc_df.shape}")
-
-    # We use 
-    return moc_df.head()
-    
-
-class MapTickerSymbols(Task):
-    def __init__(
-        self,
-        symbol_clmn_nm="Symbol",
-        yhoo_sym_clmn_nm="yahoo_symbol",
-        tsx_sym_clmn_nm="tsx_symbol",
-        prfrd_pattern=".PR."
-    ):
-        super().__init__()
-
-        self.symbol_clmn_nm = symbol_clmn_nm
-        self.yhoo_sym_clmn_nm = yhoo_sym_clmn_nm
-        self.tsx_sym_clmn_nm = tsx_sym_clmn_nm
-        self.prfrd_pattern = prfrd_pattern
-
-    def map_tsx_to_yhoo_sym(self, tsx_sym):
-        #print(tsx_sym)
-        # Check for prefereds 
-        if tsx_sym.find(self.prfrd_pattern)!=-1:
-            #print(tsx_sym)
-            pr_parts = tsx_sym.partition(self.prfrd_pattern)
-            yhoo_sym = f"{pr_parts[0]}-{pr_parts[1][1]}{pr_parts[2]}.TO"
-            #print(yhoo_sym)
-        else:
-            # Replace equity extensions (i.e. UN, PR)
-            yhoo_sym = tsx_sym.replace(".", "-")
-
-            # Add yahoo TSX key
-            yhoo_sym = f"{yhoo_sym}.TO"
-
-        return yhoo_sym
-    
-    def run(self, df):
-         # 1. Map TSX symbols to yhoo
-        df[self.yhoo_sym_clmn_nm] = df[self.symbol_clmn_nm].apply(self.map_tsx_to_yhoo_sym)
-        df.rename(columns={self.symbol_clmn_nm: self.tsx_sym_clmn_nm}, inplace=True)
-
-        # 2. Normalize columns
-        df.rename(
-            columns=lambda col_nm: humps.decamelize(col_nm).replace(" ",""), 
-            inplace=True
-        )
-
-        return df
-
 
 class GetTickerInfo(Task):
     def __init__(
@@ -252,7 +194,7 @@ def df_to_db(df, tbl_name, idx_clmn_lst, conn_str=None):
 
     df = df.set_index(idx_clmn_lst)
 
-    engine = sa.create_engine("postgresql://dbmasteruser:mayal1vn1$@ls-ff3a819f9545d450aca1b66a4ee15e343fc84280.cenjiqfifwt6.us-east-2.rds.amazonaws.com/mocdb")
+    engine = sa.create_engine(conn_str)
     df.to_sql(
         name=tbl_name,
         con=engine,
@@ -267,9 +209,9 @@ def df_to_db(df, tbl_name, idx_clmn_lst, conn_str=None):
 
 with Flow("Prepare load db data") as etl_moc_flow:
     
-    conn_str = Parameter("conn_str", default=None)
+    pg_conn_str_sec = Parameter("conn_str", default="moc_pgdb_conn")
     
-    tsx_url = Parameter("url", default="https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
+    tsx_url = Parameter("url", default="https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
     put_dir = Parameter("put_dir", default="s3://tsx-moc/")
     index_clmn_lst = Parameter("index_clmn_lst", default=["moc_date", "yahoo_symbol"])
 
@@ -281,46 +223,42 @@ with Flow("Prepare load db data") as etl_moc_flow:
     moc_key_df = yhooMap(tsx_moc_df)
 
     # 3. Get Open High _Low Close Data from yahoo
-    yOhlc = GetOhlcData()
-    # a. Download 1min day bars
     intraday_df =  get_1min_ohlc(moc_key_df)
-    
 
     # 4. Get EOD ohlc and attributes
     eod_price_df = get_eod_price_data(moc_key_df)
 
     # 5. Get share short, float and other attributes for a ticker
-    tickInfo = GetTickerInfo()
-    info_df = tickInfo(moc_key_df)
+ 
+    eod_info_df = get_sym_info(moc_key_df)
     
-    # 6. 
-
-
 
     # 6. Craete daily moc table (used for training)
-    #moc_df = build_moc_data(intraday_df, eod_price_df, eod_info_df)
+    moc_df = build_moc_data(intraday_df, eod_price_df, eod_info_df)
 
-    # # 7. Write to db
-    # num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst)
+    conn_str = PrefectSecret(pg_conn_str_sec)
 
-    # # 8. Write to db
-    # num_rows_ins = df_to_db(eod_price_df, tbl_name="eod_prices", idx_clmn_lst=index_clmn_lst)
+    # 7. Write to db
+    num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst,conn_str)
 
-    # # 9. Write to db
-    # num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst)
+    # 8. Write to db
+    num_rows_ins = df_to_db(eod_price_df, tbl_name="eod_prices", idx_clmn_lst=index_clmn_lst,conn_str)
 
-    # # 10. Write to db
-    # num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_sym_info", idx_clmn_lst=index_clmn_lst)
+    # 9. Write to db
+    num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst,conn_str)
+
+    # 10. Write to db
+    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_sym_info", idx_clmn_lst=index_clmn_lst,conn_str)
 
 
 if __name__ == "__main__":
-    # etl_moc_flow.visualize()
-    # etl_state = etl_moc_flow.run(
-    #     # parameters=dict(
-    #     #     tsx_url="https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
-    #     # )
-    # )
-    # etl_moc_flow.visualize(flow_state=etl_state) 
+    etl_moc_flow.visualize()
+    etl_state = etl_moc_flow.run(
+        # parameters=dict(
+        #     tsx_url="https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
+        # )
+    )
+    etl_moc_flow.visualize(flow_state=etl_state) 
 
     s = Secret("moc_pgdb_conn") # create a secret object
     print(s.exists()) # retrieve its value
