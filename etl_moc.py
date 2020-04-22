@@ -32,7 +32,7 @@ logger.setLevel(logging.INFO)
 schedule = Schedule(
     # fire every day
     clocks=[clocks.IntervalClock(
-        start_date=pendulum.datetime(2020, 4, 22, 17, 15, tz="America/Toronto"),
+        start_date=pendulum.datetime(2020, 4, 22, 17, 30, tz="America/Toronto"),
         interval=timedelta(days=1)
         )],
     # but only on weekdays
@@ -57,7 +57,7 @@ def scrape_tsx_moc(url, put_dir):
     tsx_moc_df = mocData.scrape_moc_data()
     logger.info("TSX MOC - Number of Symbols' {tsx_moc_df.shape}")
 
-    assert tsx_moc_df.shape[0]==0, "Succesfull Connection to TSX: No MOC Data"
+    assert tsx_moc_df.shape[0]!=0, "Succesfull Connection to TSX: No MOC Data"
 
 
     return tsx_moc_df#.head(3)
