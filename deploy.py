@@ -21,7 +21,7 @@ etl_moc_flow.storage = Docker(
     #registry_url="https://417497546600.dkr.ecr.us-east-2.amazonaws.com/get-tsx-moc-ecr",
     python_dependencies=[
         "pandas", "sqlalchemy", "psycopg2", "s3fs",
-        "lxml", "boto3", "humps", "requests", "yfinance"],
+        "lxml", "boto3", "pyhumps", "requests", "yfinance"],
     dockerfile=docker_flpth,
     image_name="etl-moc-img",
     image_tag="latest"
