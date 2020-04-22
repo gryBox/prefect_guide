@@ -17,17 +17,18 @@ docker_flpth = os.path.join(working_dir_path, "Dockerfile")
 print(f"Docker flpth: {docker_flpth}")
 
 # Build a docker container
-storage = Docker(
+etl_moc_flow.storage = Docker(
     #registry_url="https://417497546600.dkr.ecr.us-east-2.amazonaws.com/get-tsx-moc-ecr",
     python_dependencies=[
-        "pandas", "sqlalchemy", "psycopg2", 
-        "boto3", "humps", "requests", "yfinance"],
+        "pandas", "sqlalchemy", "psycopg2", "s3fs",
+        "lxml", "boto3", "humps", "requests", "yfinance"],
     dockerfile=docker_flpth,
     image_name="etl-moc-img",
     image_tag="latest"
     )
 
-dkr = storage.build()
+
+#etl_moc_flow.storage = storage.build()
 
 # 1. Go to the UI client and create a project name
 

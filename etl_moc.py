@@ -18,6 +18,7 @@ from datetime import timedelta
 import humps
 import requests
 
+
 from extractMOCData.moc_data import TsxMocData 
 from normalize.ticker_symbols import MapTickerSymbols
 from addFeatures.daily import DailyData 
