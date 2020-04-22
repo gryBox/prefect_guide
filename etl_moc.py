@@ -1,5 +1,4 @@
 from prefect import Flow, task, Task, Parameter
-from prefect.tasks.control_flow import ifelse, merge
 from prefect.tasks.secrets.base import PrefectSecret
 from prefect.engine.executors import DaskExecutor
 
