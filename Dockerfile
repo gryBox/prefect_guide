@@ -1,14 +1,6 @@
-FROM python:3.7 
+FROM prefecthq/prefect:0.10.4-python3.7
 
 
-COPY . /extractMOCData
-WORKDIR /extractMOCData
+COPY . /MOC
+WORKDIR /MOC
 
-
-RUN apt-get update && apt-get install -y \
-    libpq-dev
-
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
-RUN pip install -U boto3
-# RUN pip install -U prefect
