@@ -2,9 +2,12 @@ from prefect import Flow, task, Task, Parameter
 from prefect.tasks.control_flow import ifelse, merge
 from prefect.tasks.secrets.base import PrefectSecret
 from prefect.engine.executors import DaskExecutor
+
 #from prefect.engine.result_handlers import LocalResultHandler, S3ResultHandler
 
-from prefect.schedules import Schedule
+from prefect.schedules import clocks, filters, Schedule
+from prefect.schedules import IntervalSchedule
+
 import pendulum
 
 import boto3
@@ -29,15 +32,12 @@ logger.setLevel(logging.INFO)
 schedule = Schedule(
     # fire every day
     clocks=[clocks.IntervalClock(
-        start_date=pendulum.datetime(2020, 4, 20, tz="America/Toronto"),
+        start_date=pendulum.datetime(2020, 4, 22, 17, 15, tz="America/Toronto"),
         interval=timedelta(days=1)
         )],
     # but only on weekdays
     filters=[filters.is_weekday],
-    # and only at 5:15
-    or_filters=[
-        filters.between_times(pendulum.time(17,15), pendulum.time(17,15)),
-    ],
+
     # and not in January TODO: Add TSX Holidays
     not_filters=[filters.between_dates(1, 1, 1, 31)]
 )
