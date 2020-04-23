@@ -32,7 +32,7 @@ logger.setLevel(logging.INFO)
 schedule = Schedule(
     # fire every day
     clocks=[clocks.IntervalClock(
-        start_date=pendulum.datetime(2020, 4, 22, 19, 45, tz="America/Toronto"),
+        start_date=pendulum.datetime(2020, 4, 22, 17, 15, tz="America/Toronto"),
         interval=timedelta(days=1)
         )],
     # but only on weekdays
