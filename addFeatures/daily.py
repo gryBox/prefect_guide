@@ -129,7 +129,7 @@ class DailyData(object):
         moc_df["pre_moc_mkt_cap"] = moc_df["imbalance_reference_price"]*moc_df["shares_outstanding"]
         moc_df["imb_of_pre_moc_vol"] = moc_df["imbalance_size"]/moc_df["pre_moc_volume"]
         
-        return moc_df
+        return moc_df.round(4)
 
     def prepare_pre_moc_data(self):
         return pre_moc_df
