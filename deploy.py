@@ -84,7 +84,7 @@ ecr_repo_name = f"{ecr_url.replace('https://', '')}"#/{aws_ecr_repo_name}" #:lat
 etl_moc_flow.storage = Docker(
     #registry_url=ecr_repo_name,
     python_dependencies=[
-        "pandas", "sqlalchemy", "psycopg2", "s3fs",
+        "pandas", "sqlalchemy", "psycopg2", "s3fs", "html5lib"
         "lxml", "boto3", "pyhumps", "requests", "yfinance"],
     dockerfile=docker_flpth,
     image_name="etl-moc-img",
