@@ -94,36 +94,5 @@ etl_moc_flow.storage = Docker(
 
 # # # 6. Register 
 pushlog = etl_moc_flow.register(project_name="market-on-close")
-# docker_client = docker.from_env()
-# docker_client.login(username, password, registry=ecr_repo_name)
 
-# pushlog = docker_client.images.push(ecr_repo_name, tag="latest")
 print(pushlog)
-
-
-# print(push_log)
-# # Build a docker container
-# etl_moc_flow.storage = Docker(
-#     registry_url=registry,
-#     python_dependencies=[
-#         "pandas", "sqlalchemy", "psycopg2", "s3fs",
-#         "lxml", "boto3", "pyhumps", "requests", "yfinance"],
-#     dockerfile=docker_flpth,
-#     image_name="etl-moc-img",
-#     image_tag="latest",
-#     local_image=True
-#     )
-
-
-#etl_moc_flow.storage = storage.build()
-
-# 1. Go to the UI client and create a project name
-
-# 2. Register flow
-## How to update flow? Without that error message?
-# etl_moc_flow.register(project_name="market-on-close")
-
-
-
-
-
