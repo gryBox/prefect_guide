@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install curl -y
 EXPOSE 5432
 
 
+EXPOSE 80
+
 
 # https://stackoverflow.com/questions/714063/importing-modules-from-parent-folder
 RUN pip install .
