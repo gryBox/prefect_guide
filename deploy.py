@@ -82,10 +82,11 @@ ecr_repo_name = f"{ecr_url.replace('https://', '')}"#/{aws_ecr_repo_name}" #:lat
 
 # 5. Add Docker push to docker repo
 etl_moc_flow.storage = Docker(
-    registry_url=ecr_repo_name,
+    #registry_url=ecr_repo_name,
     python_dependencies=[
-        "pandas", "sqlalchemy", "psycopg2", "s3fs",
-        "lxml", "boto3", "pyhumps", "requests", "yfinance"],
+        "pandas", "sqlalchemy", "psycopg2", "s3fs", "html5lib",
+        "beautifulsoup4","lxml", "boto3", "pyhumps", "requests", 
+        "yfinance"],
     dockerfile=docker_flpth,
     image_name="etl-moc-img",
     image_tag=f"latest",
@@ -93,6 +94,6 @@ etl_moc_flow.storage = Docker(
     )
 
 # # # 6. Register 
-pushlog = etl_moc_flow.register(project_name="market-on-close")
+pushlog = etl_moc_flow.register(project_name="market-on-close", build=True)
 
 print(pushlog)

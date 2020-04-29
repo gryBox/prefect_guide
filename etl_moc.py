@@ -2,7 +2,7 @@ from prefect import Flow, task, Task, Parameter
 from prefect.tasks.secrets.base import PrefectSecret
 from prefect.engine.executors import DaskExecutor
 
-#from prefect.engine.result_handlers import LocalResultHandler, S3ResultHandler
+from prefect.engine.result_handlers import LocalResultHandler, S3ResultHandler
 
 from prefect.schedules import clocks, filters, Schedule
 from prefect.schedules import IntervalSchedule
@@ -27,12 +27,12 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
+import os
 # Schedule when to run the script
 schedule = Schedule(
     # fire every day
     clocks=[clocks.IntervalClock(
-        start_date=pendulum.datetime(2020, 4, 22, 17, 15, tz="America/Toronto"),
+        start_date=pendulum.datetime(2020, 4, 22, 18, 0, tz="America/Toronto"),
         interval=timedelta(days=1)
         )],
     # but only on weekdays
@@ -42,9 +42,14 @@ schedule = Schedule(
     not_filters=[filters.between_dates(1, 1, 1, 31)]
 )
 
+@task(
+    checkpoint=True,
+    result_handler= LocalResultHandler(dir=os.getcwd()),# S3ResultHandler(bucket="tsx-moc-bcp"), 
+    max_retries=2, 
+    retry_delay=timedelta(seconds=2),
+    cache_for=timedelta(hours=1)
 
-
-@task(max_retries=3, retry_delay=timedelta(seconds=10))
+    )
 def scrape_tsx_moc(url, put_dir):
     """
     Scrape the TSX website Market on close website. Data only available after 15:40 pm Toronto time
@@ -199,13 +204,25 @@ with Flow("Extract Transform TSX MOC", schedule=schedule) as etl_moc_flow:
 
 
 if __name__ == "__main__":
+    tsx_url = "https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
+    put_dir = "s3://tsx-moc/"
+    
+    with Flow("tst") as tst_fl:
+        df = scrape_tsx_moc(tsx_url, put_dir)
+
+    fl_state = tst_fl.run()
+
+    tst_fl.visualize(flow_state=fl_state)
+    print(fl_state.result[df]._result.safe_value)
+
+    pass
     #etl_moc_flow.visualize()
-    etl_state = etl_moc_flow.run(
-        # parameters=dict(
-        #     tsx_url="https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
-        # )
-        #executor=DaskExecutor()
-    )
+    # etl_state = etl_moc_flow.run(
+    #     # parameters=dict(
+    #     #     tsx_url="https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
+    #     # )
+    #     #executor=DaskExecutor()
+    # )
     #etl_moc_flow.visualize(flow_state=etl_state) 
 
     # s = Secret("moc_pgdb_conn") # create a secret object
