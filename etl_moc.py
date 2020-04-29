@@ -47,6 +47,7 @@ schedule = Schedule(
     result_handler= LocalResultHandler(dir=os.getcwd()),# S3ResultHandler(bucket="tsx-moc-bcp"), 
     max_retries=2, 
     retry_delay=timedelta(seconds=2),
+    cache_for=timedelta(hours=1)
 
     )
 def scrape_tsx_moc(url, put_dir):
@@ -207,11 +208,13 @@ if __name__ == "__main__":
     put_dir = "s3://tsx-moc/"
     
     with Flow("tst") as tst_fl:
-        scrape_tsx_moc(tsx_url, put_dir)
+        df = scrape_tsx_moc(tsx_url, put_dir)
 
     fl_state = tst_fl.run()
 
     tst_fl.visualize(flow_state=fl_state)
+    print(fl_state.result[df]._result.safe_value)
+
     pass
     #etl_moc_flow.visualize()
     # etl_state = etl_moc_flow.run(
