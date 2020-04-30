@@ -7,11 +7,13 @@ s3_handler = S3ResultHandler(bucket='tsx-moc-bcp')
 lcl_handler = LocalResultHandler()
 
 # configure on the task decorator
-@task(result_handler=lcl_handler)
+@task(result_handler=s3_handler)
 def add(x, y=1):
     return x + y
 
-
+@task(result_handler=s3_handler)
+def add(x, y=1):
+    return x + y
 
 
 with Flow("Result Handler Test") as fl:
