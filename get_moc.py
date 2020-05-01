@@ -60,7 +60,6 @@ def get_tsx_moc_imb(url: str):
     Use archived url for testing.       
     "https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     """
-    assert 1/0
     
     # 1, Get the html content
     html = requests.get(url).content
