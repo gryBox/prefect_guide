@@ -23,7 +23,7 @@ def error_notifcation_handler(obj, old_state, new_state):
         s = Secret("system_errors") # create a secret object
         slack_web_hook_url = s.get() # retrieve its value
 
-        msg = "Task '{0}' finished in state {1}".format(obj.name, new_state.message)
+        msg = f"Task '{obj.name}' finished in state {new_state.message}"
         # replace URL with your Slack webhook URL
         requests.post(slack_web_hook_url, json={"text": msg})
                 
