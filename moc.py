@@ -1,219 +1,135 @@
-from prefect import Flow, task, Task, Parameter
-from prefect.tasks.secrets.base import PrefectSecret
-from prefect.engine.executors import DaskExecutor
-
-from prefect.engine.result_handlers import LocalResultHandler, S3ResultHandler
-
-from prefect.schedules import clocks, filters, Schedule
-from prefect.schedules import IntervalSchedule
-
-import pendulum
-
-import boto3
-
+import requests
 import pandas as pd
+import numpy as np
 import sqlalchemy as sa
 
-from datetime import timedelta
-import humps
-import requests
+from prefect.client import Secret
 
+from prefect import Flow, Parameter, task
 
-from extractMOCData.moc_data import TsxMocData 
-from normalize.ticker_symbols import MapTickerSymbols
-from addFeatures.daily import DailyData 
+from prefect.engine.state import Success, Failed, Skipped
+from prefect.engine import signals
+from prefect.engine.results import S3Result, LocalResult
 
 import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-import os
-# Schedule when to run the script
-schedule = Schedule(
-    # fire every day
-    clocks=[clocks.IntervalClock(
-        start_date=pendulum.datetime(2020, 4, 22, 18, 0, tz="America/Toronto"),
-        interval=timedelta(days=1)
-        )],
-    # but only on weekdays
-    filters=[filters.is_weekday],
 
-    # and not in January TODO: Add TSX Holidays
-    not_filters=[filters.between_dates(1, 1, 1, 31)]
-)
+
+
+
+# Initialize where to store task results
+#tsx_imb_res = S3Result(bucket="tsx-moc-bcp")
+tsx_imb_res = LocalResult(dir="~/MOC/moc_res")
+def error_handler(obj, old_state, new_state):
+    
+    if new_state.is_failed():
+        # # Sends a slack notification to system errors in the tapnotion slack channel
+        #         s = Secret("system_errors") # create a secret object
+        #         slack_web_hook_url = s.get() # retrieve its value
+
+        #         msg = f"Task '{obj.name}' finished in state {new_state.message}"
+        # replace URL with your Slack webhook URL
+        # requests.post(slack_web_hook_url, json={"text": msg})
+        
+        raise signals.SKIP(message='skipping!')
+        return_state = Failed("Failed")
+                              
+        
+    else:
+        return_state = new_state   
+        
+    return return_state
+
+def imb_handler(obj, old_state, new_state):
+    # Hamdle an empty dataframe to return a fail message.  
+    # The result of a succesfull 
+    if isinstance(new_state, Success) and new_state.result.empty:
+        return_state = Failed(
+            message=f"No tsx imbalance data: No trading or Data was not published to {new_state.cached_inputs['url']}", 
+            result=new_state.result
+            )        
+    else:
+        return_state = new_state   
+
+    return return_state
 
 @task(
-    checkpoint=True,
-    result_handler= LocalResultHandler(dir=os.getcwd()),# S3ResultHandler(bucket="tsx-moc-bcp"), 
-    max_retries=2, 
-    retry_delay=timedelta(seconds=2),
-    cache_for=timedelta(hours=1)
-
-    )
-def scrape_tsx_moc(url, put_dir):
-    """
-    Scrape the TSX website Market on close website. Data only available after 15:40 pm Toronto time
-    until 12 am.
+    max_retries=3,
+    retry_delay=timedelta(seconds=1), # In production this will be change to 20 minutes
+    target="{task_name}-{today}.prefect",
+    result=tsx_imb_res, # S3Result(bucket="tsx-moc-bcp/{task_name}-{today}"), 
+    state_handlers=[imb_handler, error_handler]
+)
+def get_tsx_moc_imb(url: str):
     
-    Use archived url for testing.       
-    "https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
-    """
-    mocData = TsxMocData(url, put_dir)
-    tsx_moc_df = mocData.scrape_moc_data()
-    logger.info("TSX MOC - Number of Symbols' {tsx_moc_df.shape}")
+    # Pefect logger added.  See https://docs.prefect.io/core/idioms/logging.html#logging-from-within-tasks
+    #logger = prefect.context.get("logger") # (Error: jupyter notebook?)
+    
+    raise 1/0
+    
+    # 1, Get the html content
+    html = requests.get(url).content
+    
+    # 2. Read all the tables
+    df_list = pd.read_html(html, header=[0], na_values=[''], keep_default_na=False)
+    
+    tsx_imb_df = df_list[-1]
+    
+    logger.info(f"MOC download shape {tsx_imb_df.shape}")
 
-    assert tsx_moc_df.shape[0]!=0, "Succesfull Connection to TSX: No MOC Data"
-
-
-    return tsx_moc_df#.head(3)
+    return tsx_imb_df
 
 @task
-def get_1min_ohlc(moc_key_df):
+def add_imb_features(tsx_imb_df):
+    # rename columns
+    tsx_imb_df.rename(columns=lambda clm_nm: clm_nm.replace(" ", "_").lower(), inplace=True)
     
-    dailyData =  DailyData()
-    intraday_df = dailyData.get_yahoo_ohlc_data(moc_key_df, interval='1m')
+    # Convert string to
+    tsx_imb_df["imb_side_enc"] = np.where(tsx_imb_df['imbalance_side']=="BUY", 1, 0)
 
-    return intraday_df.round(3)
+    return tsx_imb_df
 
 @task
-def get_eod_price_data(moc_key_df):
-
-    dailyData =  DailyData()
-
-    # 2. Get daily price data 
-    eod_price_df = dailyData.get_yahoo_ohlc_data(moc_key_df, interval="1d")
-    
-    # 3. Filter out duplicates that can arise from AH/adjusted volumes
-    eod_price_df = eod_price_df.drop_duplicates(
-        [dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
-        ignore_index=True
-        )
-    
-    # Set datetime to date
-    eod_price_df[dailyData.date_clmn_nm] = eod_price_df[dailyData.date_clmn_nm].dt.date
-
-    
-    # 3. Add tsx price data (moc_key_df)
-    eod_price_df = moc_key_df.merge(
-        eod_price_df,
-        how="left", 
-        left_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm], 
-        right_on=[dailyData.date_clmn_nm, dailyData.yhoo_sym_clmn_nm]
-    ).copy()
-
-
-    return eod_price_df
-
-@task
-def get_sym_info(moc_key_df):
-    """
-    Input any df that has a list of yahoo symbols
-    """
-    
-    # 1. get ticker info
-    dailyData =  DailyData()
-    info_df = dailyData.get_sym_info_data(moc_key_df)
-
-    sub_moc_key_df = moc_key_df[[
-        dailyData.date_clmn_nm,
-        dailyData.yhoo_sym_clmn_nm,
-        dailyData.tsx_symbol_clmn_nm
-    ]]
-
-    # 3. Add keys
-    eod_info_df = sub_moc_key_df.merge(
-        info_df,
-        how="left", 
-        left_on=[dailyData.yhoo_sym_clmn_nm], 
-        right_on=[dailyData.yhoo_sym_clmn_nm]
-    )
-        
-    return eod_info_df
-
-@task
-def build_moc_data( intraday_df, eod_df, eod_info_df):
-    dailyData =  DailyData()
-    moc_df = dailyData.prepare_moc_data(intraday_df, eod_df, eod_info_df)
-
-    return moc_df
-
-
-@task
-def df_to_db(df, tbl_name, idx_clmn_lst, conn_str=None):
-
-    # if conn_str is None:
-    #     db_creds = get_db_creds()
-
-    df = df.set_index(idx_clmn_lst)
+def df_to_db(df, tbl_name, conn_str):
 
     engine = sa.create_engine(conn_str)
+    
     df.to_sql(
         name=tbl_name,
         con=engine,
         if_exists="append",
         index=True,
-        method="multi",
-        chunksize=5000
+        method="multi"
         )
     
-    # TODO: Return rows inserted
+    engine.dispose()
+  
     return df.shape
 
-with Flow("Extract Transform TSX MOC", schedule=schedule) as etl_moc_flow:
 
 
+
+
+with Flow("Our first flow") as tst_flow:
+    
     tsx_url = Parameter("tsx_url", default="https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
-    #pg_conn_str_sec = Parameter("conn_str", default="moc_pgdb_conn")
     
-    put_dir = Parameter("put_dir", default="s3://tsx-moc/")
-    index_clmn_lst = Parameter("index_clmn_lst", default=["moc_date", "yahoo_symbol"])
-
-    # 1. Scrape the tsx website for the moc
-    tsx_moc_df = scrape_tsx_moc(tsx_url, put_dir)
-
-    # # 2. Map tsx symbols to yhoo
-    yhooMap =  MapTickerSymbols()
-    moc_key_df = yhooMap(tsx_moc_df)
-
-    # # 3. Get Open High _Low Close Data from yahoo
-    intraday_df =  get_1min_ohlc(moc_key_df)
-
-    # # 4. Get EOD ohlc and attributes
-    eod_price_df = get_eod_price_data(moc_key_df)
-
-    # # 5. Get share short, float and other attributes for a ticker
-    eod_info_df = get_sym_info(moc_key_df)
-    
-
-    # 6. Craete daily moc table (used for training)
-    moc_df = build_moc_data(intraday_df, eod_price_df, eod_info_df)
-
-    conn_str = PrefectSecret("moc_pgdb_conn")
-
-    # 7. Write to db
-    num_rows_ins = df_to_db(intraday_df, tbl_name="intraday_prices", idx_clmn_lst=index_clmn_lst,conn_str=conn_str)
-
-    # 8. Write to db
-    num_rows_ins = df_to_db(eod_price_df, tbl_name="eod_prices", idx_clmn_lst=index_clmn_lst, conn_str=conn_str)
-
-    # 9. Write to db
-    num_rows_ins = df_to_db(moc_df, tbl_name="daily_moc", idx_clmn_lst=index_clmn_lst, conn_str=conn_str)
-
-    # 10. Write to db
-    num_rows_ins = df_to_db(eod_info_df, tbl_name="eod_sym_info", idx_clmn_lst=index_clmn_lst, conn_str=conn_str)
-
+    tsx_imb_df = get_tsx_moc_imb(tsx_url)
 
 if __name__ == "__main__":
+    
     tsx_url = "https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     put_dir = "s3://tsx-moc/"
     
-    with Flow("tst") as tst_fl:
-        df = scrape_tsx_moc(tsx_url, put_dir)
-
-    fl_state = tst_fl.run()
+    fl_states = tst_flow.run(
+        parameters={"tsx_url":backup_url}
+    )
+    tst_flow.visualize(flow_state=fl_states)
 
     tst_fl.visualize(flow_state=fl_state)
-    print(fl_state.result[df]._result.safe_value)
+    #print(fl_state.result[df]._result.safe_value)
 
     pass
     #etl_moc_flow.visualize()
@@ -228,7 +144,7 @@ if __name__ == "__main__":
     # s = Secret("moc_pgdb_conn") # create a secret object
     # print(s.exists()) # retrieve its value
 
-#     (base) ilivni@ilivni-UX430UAR:~$ cd ~
+# (base) ilivni@ilivni-UX430UAR:~$ cd ~
 # (base) ilivni@ilivni-UX430UAR:~$ cd .prefect
 # (base) ilivni@ilivni-UX430UAR:~/.prefect$ ls
 # client  flows  results
