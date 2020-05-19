@@ -2,7 +2,7 @@ import requests
 import pandas as pd
 import numpy as np
 import sqlalchemy as sa
-
+from datetime import timedelta
 from prefect.client import Secret
 
 from prefect import Flow, Parameter, task
@@ -119,7 +119,7 @@ with Flow("Our first flow") as tst_flow:
     tsx_imb_df = get_tsx_moc_imb(tsx_url)
 
 if __name__ == "__main__":
-    
+    backup_url = "https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     tsx_url = "https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     put_dir = "s3://tsx-moc/"
     

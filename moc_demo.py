@@ -1,13 +1,14 @@
 import pandas as pd
 import requests
-
+import sqlalchemy as sa
 from datetime import timedelta
 
-from prefect import task, Flow, Parameter, tags
+from prefect import task, Flow, Parameter, unmapped
 from prefect.engine.result_handlers import LocalResultHandler, S3ResultHandler
 from prefect.engine.state import Success, Failed, Skipped
-from prefect.client.secrets import Secret
 
+from prefect.client.secrets import Secret
+from prefect.tasks.secrets.base import PrefectSecret
 
 import logging
 logger = logging.getLogger()
@@ -71,20 +72,20 @@ def get_tsx_moc_imb(url: str):
     
     logger.info(f"MOC download shape {tsx_imb_df.shape}")
 
-    return tsx_imb_df.head(0)
+    return tsx_imb_df#.head(0)
+
+@task
+def partition_df(df, n_conn=1):
+    return np.array_split(df, n_conn)
+
 
 @task
 def df_to_db(df, tbl_name, conn_str):
 
     engine = sa.create_engine(conn_str)
     
-    df.to_sql(
-        name=tbl_name,
-        con=engine,
-        if_exists="append",
-        index=True,
-        method="multi"
-        )
+    # Changer "if_exist" to "append" when done devolpment
+    df.to_sql(name=tbl_name, con=engine, if_exists="replace", index=True, method="multi")
     
     engine.dispose()
   
@@ -95,10 +96,13 @@ def df_to_db(df, tbl_name, conn_str):
 with Flow(name="Get-TSX-MOC-Imbalances") as tsx_imb_fl:
     
     tsx_url = Parameter("tsx_url", default="https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
+    imb_tbl_nm = Parameter("imb_tbl_nm", default="moc_tst") 
     
     tsx_imb_df = get_tsx_moc_imb(tsx_url)
-    
 
+    conn_str = PrefectSecret("moc_pgdb_conn")
+    
+    df_shape = df_to_db.map(tsx_imb_df, tbl_name=unmapped(imb_tbl_nm), conn_str=unmapped(conn_str))
 
 if __name__ == "__main__":
 
@@ -112,9 +116,10 @@ if __name__ == "__main__":
     #from prefect.environments import RemoteEnvironment
     #tsx_imb_fl.environment=RemoteEnvironment(executor="prefect.engine.executors.LocalExecutor")
 
+    tsx_imb_fl.visualize()
     fl_state = tsx_imb_fl.run(
         parameters=dict(
-            tsx_url=tsx_url
+            tsx_url=backup_url
         ), 
         executor=LocalExecutor()
 
