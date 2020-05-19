@@ -2,6 +2,9 @@
 dask-worker-space
 layer
 
+# Prefect results
+results
+
 # EGM API credentials
 CREDENTIALS_CONFIG.py
 
