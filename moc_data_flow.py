@@ -5,10 +5,9 @@ import sqlalchemy as sa
 from datetime import timedelta
 
 from prefect import task, Flow, Parameter, unmapped
-from prefect.engine.results import LocalResult
-from prefect.engine.state import Success, Failed, Skipped
+from prefect.engine.results import S3Result, LocalResult
 
-from prefect.schedules import clocks, filters, Schedule, IntervalSchedule
+
 import pendulum
 
 from prefect.tasks.secrets.base import PrefectSecret
@@ -17,47 +16,16 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# s3_handler = S3ResultHandler(bucket='tsx-moc-bcp')
+
 # # https://docs.prefect.io/api/latest/utilities/context.html#context-2  
-lcl_handler = LocalResult(dir="/home/ilivni/prefect_guide/results/")
-
-def error_notifcation_handler(obj, old_state, new_state):
-    # Hamdle an empty dataframe to return a fail message.  
-    # The result of a succesfull 
-    if new_state.is_failed():
-        p = PrefectSecret("system_errors") 
-        slack_web_hook_url = p.run()
-
-        msg = f"Task '{obj.name}' finished in state {new_state.message}"
-        # replace URL with your Slack webhook URL
-        requests.post(slack_web_hook_url, json={"text": msg})
-                
-    else:
-        return_state = new_state   
-        
-    return return_state
+s3_handler = S3Result(bucket="results-prefect-tst", location="{flow_name}")
 
 
-
-def imb_handler(obj, old_state, new_state):
-    # Hamdle an empty dataframe to return a fail message.  
-    # The result of a succesfull 
-    if isinstance(new_state, Success) and new_state.result.empty:
-        return_state = Failed(
-            message=f"No tsx imbalance data: No trading or Data was not published to {new_state.cached_inputs['url']}", 
-            result=new_state.result
-            )
-        raise signals.SKIP(message='See Error Msg')        
-    else:
-        return_state = new_state   
-
-    return return_state
 
 @task(
     max_retries=2, 
     retry_delay=timedelta(seconds=1),
-    result=lcl_handler,
-    target="{today}/{task_name}.prefect",
+    target="{flow_name}/{task_name}",
     state_handlers=[imb_handler, error_notifcation_handler]
     )
 def get_tsx_moc_imb(url: str):
@@ -69,7 +37,7 @@ def get_tsx_moc_imb(url: str):
     "https://web.archive.org/web/20200414202757/https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html"
     """
 
-    raise Exception
+    #raise Exception
     
     # 1, Get the html content
     html = requests.get(url).content
@@ -85,13 +53,18 @@ def get_tsx_moc_imb(url: str):
 
     return tsx_imb_df#.head(0)
 
-@task(state_handlers=[error_notifcation_handler])
+@task(
+    target="{flow_name}/{task_name}",
+    state_handlers=[error_notifcation_handler])
 def partition_df(df, n_conn=1):
+    # raise Exception
     df_lst = np.array_split(df, n_conn)
     return df_lst
 
 
-@task(state_handlers=[error_notifcation_handler])
+@task(
+    target="{flow_name}/{task_name}",
+    state_handlers=[error_notifcation_handler])
 def df_to_db(df, tbl_name, conn_str):
     #raise Exception
     engine = sa.create_engine(conn_str)
@@ -103,9 +76,8 @@ def df_to_db(df, tbl_name, conn_str):
   
     return df.shape
 
-
 # A flow has no particular order unless the data is bound (shown) or explicitly set (not shown).
-with Flow(name="Get-TSX-MOC-Imbalances") as tsx_imb_fl:
+with Flow(name="Get-Imbalances", result=s3_handler) as tsx_imb_fl:
     
     tsx_url = Parameter("tsx_url", default="https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
     imb_tbl_nm = Parameter("imb_tbl_nm", default="moc_tst")
@@ -128,9 +100,6 @@ if __name__ == "__main__":
     # Script
     from prefect.engine.executors import LocalExecutor
 
-    #from prefect.environments import RemoteEnvironment
-    #tsx_imb_fl.environment=RemoteEnvironment(executor="prefect.engine.executors.LocalExecutor")
-
     schedule = Schedule(
         # fire every day
         clocks=[clocks.IntervalClock(
@@ -144,9 +113,9 @@ if __name__ == "__main__":
         not_filters=[filters.between_dates(1, 1, 1, 31)]
 )
 
-    tsx_imb_fl.schedule = schedule
+    #tsx_imb_fl.schedule = schedule
 
-    tsx_imb_fl.visualize()
+    #tsx_imb_fl.visualize()
     fl_state = tsx_imb_fl.run(
         parameters=dict(
             tsx_url=backup_url,
