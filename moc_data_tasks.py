@@ -58,7 +58,7 @@ def partition_df(df, n_conn=1):
 
 
 @task(
-    target="{flow_name}/{task_name}/{map_index}",
+    target="{flow_name}/{task_name}/{filename}/{map_index}",
     state_handlers=[error_notifcation_handler])
 def df_to_db(df, tbl_name, conn_str):
     #raise Exception

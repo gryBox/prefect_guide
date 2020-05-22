@@ -48,7 +48,7 @@ if __name__ == "__main__":
     fl_state = tsx_imb_fl.run(
         parameters=dict(
             tsx_url=backup_url,
-            n_conn=15
+            n_conn=4
         ), 
         executor=LocalExecutor()
 
