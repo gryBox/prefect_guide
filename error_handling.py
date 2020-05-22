@@ -1,6 +1,9 @@
 from prefect.engine.state import Success, Failed, Skipped
 from prefect.engine import signals
 
+from prefect.tasks.secrets.base import PrefectSecret
+
+import requests
 
 def error_notifcation_handler(obj, old_state, new_state):
     # Hamdle an empty dataframe to return a fail message.  
@@ -12,7 +15,7 @@ def error_notifcation_handler(obj, old_state, new_state):
         msg = f"Task'{obj.name}' finished in state {new_state.message}"
         
         # Replace URL with your Slack webhook URL
-        requests.post(slack_web_hook_url, json={"text": msg})
+        #requests.post(slack_web_hook_url, json={"text": msg})
 
         # The order matters
         return_state = new_state  

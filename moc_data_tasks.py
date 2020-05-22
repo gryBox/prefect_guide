@@ -6,14 +6,16 @@ from datetime import timedelta
 
 from prefect import task
 
-
+# Error Handling
+from error_handling import imb_handler, error_notifcation_handler
 
 
 import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-
+from prefect.engine.results import S3Result, LocalResult
+s3_handler = S3Result(bucket="results-prefect-tst", location="{flow_name}")
 
 @task(
     max_retries=2, 
@@ -56,7 +58,7 @@ def partition_df(df, n_conn=1):
 
 
 @task(
-    target="{flow_name}/{task_name}",
+    target="{flow_name}/{task_name}/{map_index}",
     state_handlers=[error_notifcation_handler])
 def df_to_db(df, tbl_name, conn_str):
     #raise Exception
