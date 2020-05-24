@@ -14,8 +14,8 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-from prefect.engine.results import S3Result, LocalResult
-s3_handler = S3Result(bucket="results-prefect-tst", location="{flow_name}")
+# from prefect.engine.results import S3Result, LocalResult
+# s3_handler = S3Result(bucket="results-prefect-tst", location="{flow_name}")
 
 @task(
     max_retries=2, 

@@ -4,7 +4,9 @@ from prefect import Flow, Parameter, task
 from prefect.engine.executors import DaskExecutor
 
 cluster = FargateCluster(
-    image="prefecthq/prefect:latest",
+    #fargate_scheduler=True,
+    image="prefecthq/prefect:latest"
+    #image="417497546600.dkr.ecr.us-east-2.amazonaws.com/pretest:latest",
     #task_role_arn="arn:aws:iam::<your-aws-account-number>:role/<your-aws-iam-role-name>",
     execution_role_arn="arn:aws:iam::417497546600:role/ecsTaskExecutionRole",
     n_workers=1,

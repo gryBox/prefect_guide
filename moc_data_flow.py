@@ -19,9 +19,9 @@ logger.setLevel(logging.INFO)
 
 # For other template options https://docs.prefect.io/api/latest/utilities/context.html#context-2  
 s3_result = S3Result(bucket="results-prefect-tst", location="{flow_name}")
-lcl_result = LocalResult(location="/home/ilivni/prefect_guide/results/{date:%A}/{task_name}.prefect")
+#lcl_result = LocalResult(location="/home/ilivni/prefect_guide/results/{date:%A}/{task_name}.prefect")
 
-result_h = lcl_result
+result_h = s3_result
 
 # A flow has no particular order unless the data is bound (shown) or explicitly set (not shown).
 with Flow(name="Get-Imbalances", result=result_h) as tsx_imb_fl:
