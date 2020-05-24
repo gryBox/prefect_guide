@@ -18,22 +18,25 @@ logger.setLevel(logging.INFO)
 
 
 # For other template options https://docs.prefect.io/api/latest/utilities/context.html#context-2  
-s3_handler = S3Result(bucket="results-prefect-tst", location="{flow_name}")
+s3_result = S3Result(bucket="results-prefect-tst", location="{flow_name}")
+lcl_result = LocalResult(location="/home/ilivni/prefect_guide/results/{date:%A}/{task_name}.prefect")
+
+result_h = lcl_result
 
 # A flow has no particular order unless the data is bound (shown) or explicitly set (not shown).
-with Flow(name="Get-Imbalances", result=s3_handler) as tsx_imb_fl:
+with Flow(name="Get-Imbalances", result=result_h) as tsx_imb_fl:
     
     tsx_url = Parameter("tsx_url", default="https://api.tmxmoney.com/mocimbalance/en/TSX/moc.html")
     imb_tbl_nm = Parameter("imb_tbl_nm", default="moc_tst")
-    n_conn = Parameter("n_conn", default=1) 
+    #n_conn = Parameter("n_conn", default=1) 
     
     tsx_imb_df = get_tsx_moc_imb(tsx_url)
 
     conn_str = PrefectSecret("moc_pgdb_conn")
     
-    tsx_imb_df_lst = partition_df(tsx_imb_df, n_conn)
+    #tsx_imb_df_lst = partition_df(tsx_imb_df, n_conn)
 
-    df_shape = df_to_db.map(tsx_imb_df_lst, tbl_name=unmapped(imb_tbl_nm), conn_str=unmapped(conn_str))
+    df_shape = df_to_db(tsx_imb_df, tbl_name=unmapped(imb_tbl_nm), conn_str=unmapped(conn_str))
 
 if __name__ == "__main__":
 
@@ -48,7 +51,7 @@ if __name__ == "__main__":
     fl_state = tsx_imb_fl.run(
         parameters=dict(
             tsx_url=backup_url,
-            n_conn=4
+            #n_conn=4
         ), 
         executor=LocalExecutor()
 

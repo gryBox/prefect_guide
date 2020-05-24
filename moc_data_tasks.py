@@ -58,14 +58,14 @@ def partition_df(df, n_conn=1):
 
 
 @task(
-    target="{flow_name}/{task_name}/{filename}/{map_index}",
+    target="{flow_name}/{task_name}/{map_index}",
     state_handlers=[error_notifcation_handler])
 def df_to_db(df, tbl_name, conn_str):
     #raise Exception
     engine = sa.create_engine(conn_str)
     
     # Changer "if_exist" to "append" when done devolpment
-    df.to_sql(name=tbl_name, con=engine, if_exists="append", index=True, method="multi")
+    df.to_sql(name=tbl_name, con=engine, if_exists="append", index=False, method="multi")
     
     engine.dispose()
   
