@@ -97,21 +97,35 @@ tsx_imb_fl.storage = Docker(
 
 ############## Define the enviroment for a fargate cluster
 
-# environment = DaskCloudProviderEnvironment(
-#     provider_class=FargateCluster,
-#     #task_role_arn="arn:aws:iam::<your-aws-account-number>:role/<your-aws-iam-role-name>",
-#     #cluster_arn="arn:aws:ecs:us-east-2:417497546600:cluster/small-comp-env_Batch_94a4f4c9-8a7e-3604-aba1-aa7180910861",
-#     execution_role_arn="arn:aws:iam::417497546600:role/ecsTaskExecutionRole",
-#     n_workers=1,
-#     scheduler_cpu=1024,
-#     scheduler_mem=1024,
-#     worker_cpu=1024,
-#     worker_mem=2048,
-#     scheduler_timeout="45 minutes",  
-# )
+from prefect.environments import FargateTaskEnvironment
+environment=FargateTaskEnvironment(
+        launch_type="FARGATE",
+        #aws_session_token="MY_AWS_SESSION_TOKEN",
+        region="us-east-2",
+        cpu="1024",
+        memory="2048",
+        # networkConfiguration={
+        #     "awsvpcConfiguration": {
+        #         "assignPublicIp": "ENABLED",
+        #         "subnets": ["MY_SUBNET_ID"],
+        #         "securityGroups": ["MY_SECURITY_GROUP"],
+        #     }
+        # },
+        family="tsx-moc",
+        # taskRoleArn="MY_TASK_ROLE_ARN",
+        # executionRoleArn="MY_EXECUTION_ROLE_ARN",
+        containerDefinitions={
+            "name": "flow-container",
+            "image": ecr_repo_name,
+            "command": [],
+            "environment": [],
+            "essential": True,
+        }
+    )
 
 
-# etl_moc_flow.environment = environment
+
+tsx_imb_fl.environment = environment
 
 
 

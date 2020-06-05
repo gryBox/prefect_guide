@@ -1,16 +1,22 @@
+import prefect 
+
+print(prefect.__version__)
+
 from prefect import task, Flow
 from prefect.engine.results import LocalResult
+from prefect.tasks.secrets.base import PrefectSecret
 
-lcl_res = LocalResult(location="/home/ilivni/prefect_guide/results/{flow_name}")
+lcl_res = LocalResult(dir="~/prefect_guide/results/{flow_name}")
 
-@task(target="a_specific_file.txt",
-    resul
-)
+@task(target="{task_name}")
 def return_list():
     return [1, 2, 3]
-@task(target="{task_name}/{filename}/{map_index}.prefect")
+
+@task(target="{task_name}/{map_index}.prefect")
 def mapped_task(x):
     return x + 1
+    
+
 with Flow("blah", result=lcl_res) as flow:
     mapped_task.map(return_list)
 
