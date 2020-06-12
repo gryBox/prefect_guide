@@ -1,3 +1,7 @@
+import prefect
+print(prefect.__version__)
+
+
 import pandas as pd
 import numpy as np
 import requests
@@ -18,7 +22,7 @@ logger.setLevel(logging.INFO)
 
 
 # For other template options https://docs.prefect.io/api/latest/utilities/context.html#context-2  
-s3_result = S3Result(bucket="results-prefect-tst", location="{flow_name}-{today}")
+s3_result = S3Result(bucket="results-prefect-tst", location="{flow_name}-{today}/results.prefect")
 
 #lcl_result = LocalResult(dir="~/prefect_guide/results/", location="{flow_name}/{today}")
 
@@ -31,10 +35,13 @@ with Flow(name="Get-Imbalances", result=result_h) as tsx_imb_fl:
     imb_tbl_nm = Parameter("imb_tbl_nm", default="moc_tst")
     n_conn = Parameter("n_conn", default=1) 
     
+    # Scrape the website
     tsx_imb_df = get_tsx_moc_imb(tsx_url)
 
+    # Get the connection string from prefect cloud 
     conn_str = PrefectSecret("moc_pgdb_conn")
     
+    # Partition the df to 
     tsx_imb_df_lst = partition_df(tsx_imb_df, n_conn)
 
     df_shape = df_to_db.map(tsx_imb_df_lst, tbl_name=unmapped(imb_tbl_nm), conn_str=unmapped(conn_str))

@@ -20,7 +20,7 @@ logger.setLevel(logging.INFO)
 @task(
     max_retries=2, 
     retry_delay=timedelta(seconds=1),
-    target="{flow_name}/{task_name}",
+    target="{flow_name}-{today}/{task_name}",
     state_handlers=[imb_handler, error_notifcation_handler]
     )
 def get_tsx_moc_imb(url: str):
@@ -49,7 +49,7 @@ def get_tsx_moc_imb(url: str):
     return tsx_imb_df#.head(0)
 
 @task(
-    target="{flow_name}/{task_name}",
+    target="{flow_name}-{today}/{task_name}",
     state_handlers=[error_notifcation_handler])
 def partition_df(df, n_conn=1):
     # raise Exception
@@ -58,7 +58,7 @@ def partition_df(df, n_conn=1):
 
 
 @task(
-    target="{flow_name}/{task_name}/{map_index}",
+    target="{flow_name}-{today}/{task_name}/{map_index}",
     state_handlers=[error_notifcation_handler])
 def df_to_db(df, tbl_name, conn_str):
     #raise Exception
