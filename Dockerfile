@@ -1,4 +1,4 @@
-FROM prefecthq/prefect:0.11.2-python3.7
+FROM prefecthq/prefect:master
 
 COPY ./ /MOC/
 WORKDIR /MOC
